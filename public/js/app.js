@@ -1,5 +1,7 @@
 import {AXES,AXDESC,INS,MARKET,TXIN,FEE,FXFEE,WHT} from "./data/mock-portfolio.js";
 /* global echarts */
+// Echte marktdata (EODHD via de server) als die er is; anders draait alles op voorbeelddata.
+const LIVE=await fetch('/api/market').then(r=>r.ok?r.json():null).then(d=>d&&d.instruments?d:null).catch(()=>null);
 /* ============ helpers ============ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const nf0=new Intl.NumberFormat('nl-NL',{maximumFractionDigits:0});
@@ -12,8 +14,9 @@ const cls=v=>v>=0?'up':'down';
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function rng(seed){let a=0;for(const c of seed)a=(a*31+c.charCodeAt(0))>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-const DAY=864e5, START=Date.UTC(2019,0,7), NW=411; // weekly points 2019-01-07 .. 2026-11-09
-const TODAY=Date.UTC(2026,10,15);
+const DAY=864e5, START=Date.UTC(2019,0,7);
+const TODAY=LIVE?(()=>{const n=new Date();return Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate());})():Date.UTC(2026,10,15);
+const NW=Math.floor((TODAY-START)/(7*DAY))+1; // one point per week since the first purchase
 const wdate=i=>START+i*7*DAY;
 const widx=d=>Math.max(0,Math.min(NW-1,Math.floor((d-START)/(7*DAY))));
 const D=s=>{const [y,m,d]=s.split('-').map(Number);return Date.UTC(y,m-1,d);};
@@ -32,8 +35,35 @@ const FACT={}; ['semi','fintech','energy','fin','staples','services','tech','hea
 function pathFrom(rets,last,first){const lp=[0];for(let i=1;i<NW;i++)lp.push(lp[i-1]+rets[i]);const a=Math.log(first),b=Math.log(last),e=lp[NW-1];return lp.map((v,i)=>Math.exp(a+v-e*i/(NW-1)+(b-a)*i/(NW-1)));}
 INS.forEach(x=>{const r=rng('p'+x.t);x.ret=[0];for(let i=1;i<NW;i++)x.ret.push(x.al+x.beta*(mkt[i]-.0016)+.9*FACT[x.f][i]+x.iv*gauss(r));x.px=pathFrom(x.ret,x.p,x.p0);
   const rd=rng('d'+x.t); x.day=(rd()-.45)*.035; });
-const AEX=pathFrom(mkt,905.3,487);
-const rF=rng('fx'); const fxr=[0]; for(let i=1;i<NW;i++)fxr.push(.0002+.008*gauss(rF)); const FX=pathFrom(fxr,.8652,.874); // EUR per USD
+let AEX=pathFrom(mkt,905.3,487);
+const rF=rng('fx'); const fxr=[0]; for(let i=1;i<NW;i++)fxr.push(.0002+.008*gauss(rF)); let FX=pathFrom(fxr,.8652,.874); // EUR per USD
+// mock benchmarks (replaced by real series below when available)
+const mockIdx=(seed,beta,noise,first,last)=>{const r=rng(seed);const rs=[0];for(let i=1;i<NW;i++)rs.push(.0014+beta*(mkt[i]-.0016)+noise*gauss(r));return pathFrom(rs,last,first);};
+const BENCH={AEX:{name:'AEX',s:null,note:'koersindex'},AMX:{name:'AMX (midkap)',s:mockIdx('amx',.85,.012,520,930),note:'koersindex'},
+  MSCIW:{name:'MSCI World (ETF)',s:mockIdx('msciw',.7,.011,47,108),note:'ETF in euro, inclusief dividend'},SPX:{name:'S&P 500 (in euro)',s:mockIdx('spx',.75,.012,2250,6200),note:'koersindex, omgerekend naar euro'},
+  SX5E:{name:'Euro Stoxx 50',s:mockIdx('sx5e',.9,.008,3000,5650),note:'koersindex'}};
+INS.forEach(x=>{x.fvSrc='Voorbeeldschatting';x.divEvents=null;});
+/* ---- real data from EODHD ---- */
+function align(series){const pts=(series||[]).map(([d,c])=>[D(d),+c]).filter(p=>p[1]>0).sort((a,b)=>a[0]-b[0]);if(pts.length<20)return null;
+  const out=new Array(NW);let j=0,last=pts[0][1];for(let i=0;i<NW;i++){const t=wdate(i)+4*DAY;while(j<pts.length&&pts[j][0]<=t){last=pts[j][1];j++;}out[i]=last;}return out;}
+if(LIVE){
+  const fx=align(LIVE.fx&&LIVE.fx.prices); if(fx) FX=fx.map(v=>1/v); // EODHD gives USD per EUR
+  INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;const px=align(L.prices);
+    if(px){x.px=px;const q=L.quote||{};if(q.last>0){x.p=q.last;x.px[NW-1]=q.last;}else x.p=px[NW-1];
+      x.day=q.changePct!=null?q.changePct/100:(x.px[NW-1]/x.px[NW-2]-1);
+      x.ret=[0];for(let i=1;i<NW;i++)x.ret.push(Math.log(x.px[i]/x.px[i-1]));x.live=true;}
+    const F=L.fundamentals;if(F){const r1=v=>Math.round(v*10)/10;
+      if(F.pe>0)x.pe=r1(F.pe); if(F.epsGrowthNext!=null)x.g=r1(F.epsGrowthNext*100); if(F.roe!=null)x.roe=r1(F.roe*100);
+      if(F.debtEquity!=null)x.de=Math.round(F.debtEquity*100); if(F.payout!=null)x.payout=Math.round(F.payout*(F.payout<=1.5?100:1));
+      if(F.targetPrice>0){x.fv=F.targetPrice;x.fvSrc='Koersdoel analisten';}
+      if(F.revGrowth!=null)x.revG=r1(F.revGrowth*100); if(F.margin!=null)x.margin=r1(F.margin*100);}
+    if(L.dividends&&L.dividends.length){x.divEvents=L.dividends.map(d=>({exd:D(d.ex),pay:D(d.pay||d.ex),ps:+d.amount})).filter(d=>d.ps>0).sort((a,b)=>a.exd-b.exd);
+      x.dps=x.divEvents.filter(d=>d.exd>TODAY-365*DAY&&d.exd<=TODAY).reduce((a,d)=>a+d.ps,0);}
+    else if(x.live)x.dps=x.dps||0;});
+  Object.entries(BENCH).forEach(([k,b])=>{const L=LIVE.benchmarks&&LIVE.benchmarks[k];const s=L&&align(L.prices);if(s)b.s=L.ccy==='USD'?s.map((v,i)=>v*FX[i]):s;});
+  const a=LIVE.benchmarks&&LIVE.benchmarks.AEX&&align(LIVE.benchmarks.AEX.prices); if(a)AEX=a;
+}
+BENCH.AEX.s=AEX;
 const fxAt=(ccy,i)=>ccy==='USD'?FX[i]:1;
 
 /* ============ ledger: positions, cash flows, dividends ============ */
@@ -45,9 +75,16 @@ TXIN.forEach(([ds,ty,t,q])=>{const x=BY[t],d=D(ds),i=widx(d),pl=x.px[i],fx=fxAt(
 TX.sort((a,b)=>a.d-b.d);
 function qtyAt(t,d){let q=0;for(const tx of TX){if(tx.t!==t||tx.d>d)continue;if(tx.ty==='BUY')q+=tx.q;else if(tx.ty==='SELL')q-=tx.q;}return q;}
 // dividend schedule: history (paid) + forecast (next 12 months)
-const DIVS=[]; const END12=Date.UTC(2027,10,15);
-INS.forEach(x=>{if(!x.dps)return;const w=x.dmw||x.dm.map(()=>1/x.dm.length);
-  for(let y=2019;y<=2027;y++){const dpsY=x.dps*Math.pow(1.055,y-2026);
+const DIVS=[]; const END12=TODAY+365*DAY;
+function pushDiv(x,exd,pay,ps,hist){const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
+  const fx=x.ccy==='USD'?(hist?FX[widx(pay)]:FX[NW-1]):1;const g=q*ps*fx;DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*WHT,net:g*(1-WHT),hist,est:!hist&&!x._declared});}
+INS.forEach(x=>{if(!x.divEvents)return;
+  x.divEvents.forEach(d=>{if(d.pay<START+20*DAY)return;if(d.pay<=TODAY)pushDiv(x,d.exd,d.pay,d.ps,true);else{x._declared=true;pushDiv(x,d.exd,d.pay,d.ps,false);x._declared=false;}});
+  // estimate the next 12 months from the last 12, skipping payments that are already declared
+  x.divEvents.filter(d=>d.pay>TODAY-365*DAY&&d.pay<=TODAY).forEach(d=>{const pay=d.pay+365*DAY,exd=d.exd+365*DAY;
+    if(x.divEvents.some(e=>Math.abs(e.pay-pay)<40*DAY))return;if(pay<=END12)pushDiv(x,exd,pay,d.ps,false);});});
+INS.forEach(x=>{if(!x.dps||x.divEvents)return;const w=x.dmw||x.dm.map(()=>1/x.dm.length);
+  for(let y=2019;y<=new Date(END12).getUTCFullYear();y++){const dpsY=x.dps*Math.pow(1.055,y-2026);
     x.dm.forEach(([m,day],k)=>{const pay=Date.UTC(y,m-1,day),exd=pay-24*DAY;if(pay<START+20*DAY||pay>END12)return;
       const hist=pay<=TODAY;const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
       const ps=dpsY*w[k];const fx=x.ccy==='USD'?(hist?FX[widx(pay)]:FX[NW-1]):1;const g=q*ps*fx;
@@ -66,6 +103,22 @@ OPEN.forEach(x=>{x.w=x.val/TOTAL;x.prev=x.p/(1+x.day);x.dayE=x.val-x.val/(1+x.da
   const P=pos[x.t];x.totRes=x.priceGain+x.fxGain+P.real+P.divG-P.divT-P.fees;x.totPct=x.totRes/x.cost;x.disc=(x.fv-x.p)/x.fv;});
 OPEN.sort((a,b)=>b.val-a.val);
 const wavg=f=>OPEN.reduce((a,x)=>a+x.w*f(x),0);
+const FV_L=LIVE?'koersdoel':'reële waarde', FV_U=LIVE?'Koersdoel':'Reële waarde';
+/* ---- Kompasscore: 6 checks per kenmerk, berekend uit de data (geen handmatige scores) ---- */
+const AEXVOL=(()=>{const r=[];for(let i=NW-156;i<NW;i++)r.push(AEX[i]/AEX[i-1]-1);const m=r.reduce((a,b)=>a+b,0)/r.length;return Math.sqrt(r.reduce((a,b)=>a+(b-m)**2,0)/(r.length-1))*Math.sqrt(52);})();
+const chg=(x,w)=>x.px[NW-1]/x.px[Math.max(0,NW-1-w)]-1;
+function checks(x){const vol=(()=>{const r=x.ret.slice(NW-156).map(v=>Math.expm1?Math.expm1(v):v);const m=r.reduce((a,b)=>a+b,0)/r.length;return Math.sqrt(r.reduce((a,b)=>a+(b-m)**2,0)/(r.length-1))*Math.sqrt(52);})();
+  const aex3=AEX[NW-1]/AEX[NW-157]-1;const peg=x.pe>0&&x.g>0?x.pe/x.g:null;
+  const divs=x.divEvents?x.divEvents.filter(d=>d.exd<=TODAY):null;const yr=y=>divs?divs.filter(d=>new Date(d.exd).getUTCFullYear()===y).reduce((a,d)=>a+d.ps,0):x.dps*Math.pow(1.055,y-2026);
+  const cy=new Date(TODAY).getUTCFullYear();const noCut=x.dps>0&&[1,2,3,4].every(k=>yr(cy-k)>=yr(cy-k-1)*.95||yr(cy-k-1)===0);const grew=x.dps>0&&yr(cy-1)>yr(cy-5)&&yr(cy-5)>0;
+  const yl=x.dps/x.p;const bank=x.ind==='Banken'||x.ind==='Verzekeraars';
+  return [
+   [['Koers onder '+FV_L,x.p<x.fv],['Meer dan 20% onder '+FV_L,x.p<x.fv*.8],['K/W lager dan de AEX ('+MARKET.pe+'x)',x.pe>0&&x.pe<MARKET.pe],['K/W onder 25x',x.pe>0&&x.pe<25],['Winstgevend (K/W positief)',x.pe>0],['PEG onder 1,5',peg!==null&&peg<1.5]],
+   [['Winst groeit',x.g>0],['Groeit sneller dan de AEX ('+MARKET.g+'%)',x.g>MARKET.g],['Groei boven 15% per jaar',x.g>15],['Groeit sneller dan spaarrente (2,5%)',x.g>2.5],['Omzet groeit',(x.revG??x.g)>0],['Groei boven 20% per jaar',x.g>20]],
+   [['Rendement eigen vermogen positief',x.roe>0],['ROE hoger dan de AEX ('+MARKET.roe+'%)',x.roe>MARKET.roe],['ROE boven 20%',x.roe>20],['Koers hoger dan 3 jaar geleden',chg(x,156)>0],['Beter dan de AEX over 3 jaar',chg(x,156)>aex3],['Koers hoger dan 5 jaar geleden',chg(x,260)>0]],
+   [[bank?'Schuld/EV: niet zinvol bij banken en verzekeraars':'Schuld lager dan eigen vermogen',bank||x.de<100],[bank?'Gereguleerde kapitaalbuffer (aangenomen)':'Schuld/EV lager dan de AEX ('+MARKET.de+'%)',bank||x.de<MARKET.de],['Schuld/EV onder 40%',!bank&&x.de<40],['Vrijwel schuldenvrij (onder 10%)',!bank&&x.de<10],['Minder beweeglijk dan 1,5x de AEX',vol<AEXVOL*1.5],['Daling vanaf piek (1 jaar) kleiner dan 25%',x.px[NW-1]/Math.max(...x.px.slice(NW-52))>.75]],
+   [['Keert dividend uit',x.dps>0],['Dividendrendement boven 2%',yl>.02],['Hoger dan de AEX ('+pct(MARKET.yld)+')',yl>MARKET.yld],['Uitkeringsratio onder 90%',x.dps>0&&(x.payout??0)<90],['Geen verlaging in 4 jaar',noCut],['Dividend gegroeid in 5 jaar',grew]]];}
+INS.forEach(x=>{x.checks=checks(x);x.s=x.checks.map(a=>a.filter(c=>c[1]).length);});
 const PSCORE=AXES.map((_,k)=>wavg(x=>x.s[k]));
 
 // weekly portfolio series
@@ -131,7 +184,7 @@ function spark(x,w=84,h=26){const a=x.px.slice(-26);const mn=Math.min(...a),mx=M
   const up=a[a.length-1]>=a[0];const col=up?'var(--good)':'var(--bad)';
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Koers laatste 6 maanden ${up?'gestegen':'gedaald'}" role="img"><polyline points="${pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="2.2" fill="${col}"/></svg>`;}
 const px=(x,v=x.p)=>(x.ccy==='USD'?'$ ':'€ ')+nf2.format(v);
-const valPill=x=>{const d=x.disc;return Math.abs(d)<.05?`<span class="pill neu">rond reële waarde</span>`:d>0?`<span class="pill good">${pct(d,0)} onder reële waarde</span>`:`<span class="pill bad">${pct(-d,0)} boven reële waarde</span>`;};
+const valPill=x=>{const d=x.disc;return Math.abs(d)<.05?`<span class="pill neu">rond ${FV_L}</span>`:d>0?`<span class="pill good">${pct(d,0)} onder ${FV_L}</span>`:`<span class="pill bad">${pct(-d,0)} boven ${FV_L}</span>`;};
 
 /* ============ OVERZICHT ============ */
 function renderHero(){
@@ -266,21 +319,21 @@ function renderRisk(){
 /* ============ WAARDERING ============ */
 function renderVal(){const fvTot=OPEN.reduce((a,x)=>a+x.q*x.fv*x.fxNow,0);const under=OPEN.filter(x=>x.disc>0);
   $('#valHero').innerHTML=`<div class="stat"><span class="l">Waarde portefeuille</span><span class="big num">${eur(TOTAL)}</span></div>
-   <div class="stat"><span class="l">Geschatte reële waarde</span><span class="v num">${eur(fvTot)}</span></div>
-   <div class="stat"><span class="l">Verschil</span><span class="v num ${cls(fvTot-TOTAL)}">${pctS((fvTot-TOTAL)/fvTot)} ${fvTot>TOTAL?'onder':'boven'} reële waarde</span></div>`;
+   <div class="stat"><span class="l">${LIVE?"Koersdoel analisten, gewogen":"Geschatte reële waarde"}</span><span class="v num">${eur(fvTot)}</span></div>
+   <div class="stat"><span class="l">Verschil</span><span class="v num ${cls(fvTot-TOTAL)}">${pctS((fvTot-TOTAL)/fvTot)} ${fvTot>TOTAL?'onder':'boven'} ${FV_L}</span></div>`;
   $('#valKpis').innerHTML=[
    ['Deel ondergewaardeerd',pct(under.reduce((a,x)=>a+x.w,0),0),under.length+' posities','up'],
    ['Deel overgewaardeerd',pct(1-under.reduce((a,x)=>a+x.w,0),0),(OPEN.length-under.length)+' posities','down'],
-   ['Gewogen opwaarts potentieel',eurS(fvTot-TOTAL),'als alle posities naar reële waarde gaan',''],
+   ['Gewogen opwaarts potentieel',eurS(fvTot-TOTAL),'als alle posities naar '+FV_L+' gaan',''],
    ['Gewogen koers/winst',nf2.format(wavg(x=>x.pe))+'x','AEX '+nf2.format(MARKET.pe)+'x','']].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
   const b=base();const xs=[...OPEN].sort((a,b)=>b.disc-a.disc);
   C('chVal').setOption({textStyle:b.text,grid:{left:8,right:60,top:8,bottom:24,containLabel:true},
-   tooltip:{...b.tip,trigger:'item',formatter:p=>{const x=xs[p.dataIndex];return `<b>${x.t}</b> · ${x.n}<br>Koers ${px(x)} · reële waarde ${px(x,x.fv)}<br>${x.disc>0?'Onder':'Boven'} reële waarde: ${pct(Math.abs(x.disc))}`;}},
+   tooltip:{...b.tip,trigger:'item',formatter:p=>{const x=xs[p.dataIndex];return `<b>${x.t}</b> · ${x.n}<br>Koers ${px(x)} · ${FV_L} ${px(x,x.fv)}<br>${x.disc>0?'Onder':'Boven'} ${FV_L}: ${pct(Math.abs(x.disc))}`;}},
    xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>pctS(v/100,0)}},
    yAxis:{type:'category',inverse:true,data:xs.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600,fontSize:12}},
    series:[{type:'bar',barWidth:14,data:xs.map(x=>{const v=+(-x.disc*100).toFixed(1);return {value:v,itemStyle:{color:v<=0?b.good:b.bad,borderRadius:v<=0?[4,0,0,4]:[0,4,4,0]}};}),
     label:{show:true,position:'right',formatter:p=>pctS(p.value/100),color:b.ink2,fontSize:11.5},markLine:{silent:true,symbol:'none',data:[{xAxis:0}],lineStyle:{color:b.ink3,width:1},label:{show:false}}}]});
-  $('#tblVal').innerHTML=`<thead><tr><th>Positie</th><th class="n">Koers</th><th class="n">Reële waarde</th><th>Oordeel</th><th class="n">Potentieel</th><th class="n">K/W</th></tr></thead><tbody>`+
+  $('#tblVal').innerHTML=`<thead><tr><th>Positie</th><th class="n">Koers</th><th class="n">${FV_U}</th><th>Oordeel</th><th class="n">Potentieel</th><th class="n">K/W</th></tr></thead><tbody>`+
    xs.map(x=>`<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${glyph(x.s,26)}<div><b>${x.t}</b><small>${x.n}</small></div></div></td><td class="n num">${px(x)}</td><td class="n num">${px(x,x.fv)}</td><td>${valPill(x)}</td><td class="n num ${cls(x.fv-x.p)}">${eurS(x.q*(x.fv-x.p)*x.fxNow)}</td><td class="n num">${x.pe}x</td></tr>`).join('')+'</tbody>';}
 
 /* ============ DIVIDEND ============ */
@@ -366,7 +419,13 @@ const NEWS=[
  {t:'AD',c:'Dividend',h:'Ahold Delhaize zet inkoopprogramma voort',p:'Voorbeeldbericht over aandeleninkoop en dividendbeleid.',ago:'4 dagen geleden'},
 ];
 let newsF='Alles';
-function renderNews(){const cats=['Alles',...new Set(NEWS.map(n=>n.c))];
+const T2={};Object.keys(BY).forEach(t=>{T2[t]=t;});
+function liveNews(){if(!LIVE||!LIVE.news||!LIVE.news.length)return null;const sym=Object.fromEntries(INS.map(x=>[(LIVE.instruments[x.t]||{}).symbol,x.t]));
+  return LIVE.news.map(n=>({ts:(n.symbols||[]).map(s=>sym[s]||sym[s.replace(/\.US$/,'.US')]).filter(Boolean),c:'Nieuws',h:n.title,url:n.url,src:n.source,ago:fdate(Date.parse(n.date))})).filter(n=>n.ts.length);}
+function renderNews(){const LN=liveNews();if(LN){const tks=['Alles',...new Set(LN.flatMap(n=>n.ts))];if(!tks.includes(newsF))newsF='Alles';
+   $('#newsFilters').innerHTML=tks.map(c=>`<button aria-pressed="${c===newsF}" data-c="${c}">${c}</button>`).join('');
+   $('#newsList').innerHTML=LN.filter(n=>newsF==='Alles'||n.ts.includes(newsF)).map(n=>`<article class="item"><div class="meta">${n.ts.map(t=>{const x=BY[t];return `<span class="chip tick">${t} ${px(x)} <span class="${cls(x.day)}">${pctS(x.day,1)}</span></span>`;}).join('')}<span>${n.src||''}</span><span>${n.ago}</span></div><h3><a href="${n.url}" target="_blank" rel="noopener" style="color:inherit">${n.h.replace(/</g,'&lt;')}</a></h3></article>`).join('');return;}
+  const cats=['Alles',...new Set(NEWS.map(n=>n.c))];
   $('#newsFilters').innerHTML=cats.map(c=>`<button aria-pressed="${c===newsF}" data-c="${c}">${c}</button>`).join('');
   $('#newsList').innerHTML=NEWS.filter(n=>newsF==='Alles'||n.c===newsF).map(n=>{const x=BY[n.t];return `<article class="item"><div class="meta"><span class="chip tick">${n.t} ${px(x)} <span class="${cls(x.day)}">${pctS(x.day,1)}</span></span><span class="chip">${n.c}</span><span>${n.ago}</span></div><h3>${n.h}</h3><p>${n.p}</p></article>`;}).join('');}
 
@@ -388,13 +447,127 @@ function renderEnts(){const E=[
  $('#ents').innerHTML=E.map(([n,d,f])=>`<section><h3>${n}</h3><p style="padding-top:8px">${d}</p><ul>${f.map(([a,b])=>`<li><span>${a}</span><em>${b}</em></li>`).join('')}</ul></section>`).join('')+
  `<section><h3>berekend, niet opgeslagen</h3><p style="padding-top:8px">Afgeleid uit de tabellen hiernaast, in dit prototype in de browser</p><ul>${['posities en gemiddelde kostprijs','waarde- en inlegreeks','IRR (XIRR) en TWR','gerealiseerd en valuta-effect','volatiliteit, bèta, drawdown','correlatiematrix','dividendprognose 12 mnd','gewogen kompasscore'].map(s=>`<li><span>${s}</span></li>`).join('')}</ul></section>`;}
 
+/* ============ BRON / HEADER ============ */
+function renderSource(){const last=wdate(NW-1);
+  $('#srcBadge').textContent=LIVE?`Live · ${LIVE.source}`:'Prototype · voorbeelddata';$('#srcBadge').classList.toggle('live',!!LIVE);
+  if(LIVE){const v=$('#v-waardering .panel:nth-child(2) header p');if(v)v.textContent='Links van nul noteert de positie onder het gemiddelde koersdoel van analisten, rechts erboven.';const n=$('#v-nieuws header p');if(n)n.textContent='Recente berichten over je posities, via '+LIVE.source+'. Klik om het volledige bericht te openen.';}
+  $('#footSrc').textContent=LIVE?`Data: ${LIVE.source}. Fundamentals en koersdoelen van analisten. Geen beleggingsadvies.`:'Voorbeelddata. Geen beleggingsadvies.';
+  $('#subLine').textContent=`Demoportefeuille "Lange termijn" · ${LIVE?'koersen bijgewerkt '+fdate(Date.parse(LIVE.generatedAt)):'koersen gesimuleerd t/m '+fdate(TODAY)}`;}
+
+/* ============ PORTEFEUILLEKAART + SIGNALEN ============ */
+let tmSel='day';
+function renderTree(){const b=base();const chgOf=x=>tmSel==='day'?x.day:x.px[NW-1]/x.px[NW-1-(+tmSel)]-1;
+  const lim={day:.03,1:.05,4:.1,52:.4}[tmSel];const bySec={};OPEN.forEach(x=>{(bySec[x.sec]=bySec[x.sec]||[]).push(x);});
+  const data=Object.entries(bySec).map(([sec,xs])=>({name:sec,children:xs.map(x=>({name:x.t,value:[+x.val.toFixed(0),+chgOf(x).toFixed(4)],full:x.n}))}));
+  C('chTree').setOption({textStyle:b.text,tooltip:{...b.tip,formatter:p=>p.data&&p.data.full?`<b>${p.name}</b> · ${p.data.full}<br>${eur(p.value[0])} · ${pctS(p.value[1])}`:`<b>${p.name}</b>`},
+   visualMap:{show:false,type:'continuous',min:-lim,max:lim,dimension:1,seriesIndex:0,inRange:{color:[b.bad,css('--div-mid'),b.good]}},
+   series:[{type:'treemap',roam:false,nodeClick:false,breadcrumb:{show:false},left:0,right:0,top:0,bottom:0,visualDimension:1,
+    upperLabel:{show:true,height:20,color:b.ink2,fontSize:11,fontWeight:600,formatter:'{b}',backgroundColor:'transparent'},
+    itemStyle:{borderColor:b.sf,borderWidth:2,gapWidth:2},
+    levels:[{upperLabel:{show:false},itemStyle:{borderColor:b.sf,borderWidth:0,gapWidth:4}},{upperLabel:{show:true,formatter:'{b}'},itemStyle:{borderColor:css('--surface-2'),borderWidth:3,gapWidth:2}},{}],
+    label:{show:true,formatter:p=>`{t|${p.name}}\n{c|${pctS(p.value[1])}}`,rich:{t:{fontWeight:700,fontSize:13,color:b.ink},c:{fontSize:11.5,color:b.ink2}}},data}]});}
+function renderSignals(){const out=[];const add=(k,ic,t,s)=>out.push({k,ic,t,s});
+  const soon=DIVS.filter(v=>!v.hist&&v.exd>=TODAY&&v.exd<=TODAY+14*DAY);soon.forEach(v=>add(1,'info',`${v.t} gaat ${fdate(v.exd)} ex-dividend`,`Verwacht ${eur(v.net,2)} netto, betaling rond ${fdate(v.pay)}`));
+  DIVS.filter(v=>!v.hist&&v.pay>=TODAY&&v.pay<=TODAY+14*DAY).forEach(v=>add(2,'good',`${v.t} betaalt ${eur(v.net,2)} dividend`,`Rond ${fdate(v.pay)}`));
+  OPEN.filter(x=>x.w>.1).forEach(x=>add(3,'bad',`${x.t} is ${pct(x.w)} van je portefeuille`,'Boven 10% maakt één tegenvaller voelbaar'));
+  const secW={};OPEN.forEach(x=>secW[x.sec]=(secW[x.sec]||0)+x.w);Object.entries(secW).filter(([,w])=>w>.3).forEach(([s,w])=>add(3,'bad',`${s} weegt ${pct(w)}`,'Meer dan 30% in één sector'));
+  OPEN.filter(x=>x.disc>.15).sort((a,b)=>b.disc-a.disc).slice(0,2).forEach(x=>add(4,'good',`${x.t} noteert ${pct(x.disc,0)} onder ${FV_L}`,`Koers ${px(x)}, ${FV_L} ${px(x,x.fv)}`));
+  OPEN.filter(x=>x.disc<-.1).forEach(x=>add(4,'bad',`${x.t} staat ${pct(-x.disc,0)} boven ${FV_L}`,`Koers ${px(x)}, ${FV_L} ${px(x,x.fv)}`));
+  OPEN.forEach(x=>{const hi=Math.max(...x.px.slice(NW-52));const dd=x.p/hi-1;if(dd<-.25)add(5,'bad',`${x.t} staat ${pct(-dd,0)} onder de top van dit jaar`,`Jaarhoog ${px(x,hi)}`);});
+  const best=[...OPEN].sort((a,b)=>chg(b,52)-chg(a,52));add(6,'good',`Beste positie dit jaar: ${best[0].t} ${pctS(chg(best[0],52))}`,`Zwakste: ${best.at(-1).t} ${pctS(chg(best.at(-1),52))}`);
+  out.sort((a,b)=>a.k-b.k);
+  $('#signals').innerHTML=out.slice(0,8).map(o=>`<div class="sig"><span class="ic ${o.ic}">${o.ic==='good'?'↑':o.ic==='bad'?'!':'i'}</span><div>${o.t}<small>${o.s}</small></div></div>`).join('')||'<p class="note">Geen bijzonderheden.</p>';}
+
+/* ============ SCORE-CHECKS ============ */
+function renderChecks(){const xs=[...OPEN].sort((a,b)=>b.s[axisSel]-a.s[axisSel]||b.w-a.w);const labels=OPEN[0].checks[axisSel].map(c=>c[0]);
+  $('#tblChecks').innerHTML=`<thead><tr><th>Positie</th>${labels.map((l,i)=>`<th title="${l}" style="white-space:normal;min-width:84px;max-width:130px;text-transform:none;letter-spacing:0;font-size:11.5px;line-height:1.3">${l}</th>`).join('')}<th class="n">Score</th></tr></thead><tbody>`+
+   xs.map(x=>`<tr><td><b>${x.t}</b></td>${x.checks[axisSel].map(c=>`<td><span class="dot ${c[1]?'y':'n'}" title="${x.t}: ${c[0]}: ${c[1]?'ja':'nee'}" aria-label="${c[1]?'ja':'nee'}"></span></td>`).join('')}<td class="n num"><b>${x.s[axisSel]}</b>/6</td></tr>`).join('')+'</tbody>';}
+
+/* ============ BELASTING ============ */
+let taxP=1;
+function renderTax(){const cy=new Date(TODAY).getUTCFullYear();const j1=widx(Date.UTC(cy,0,1));const v0=SER.v[j1];
+  const free=57684*taxP, forfait=.0588, rate=.36;const base_=Math.max(0,v0-free);const tax=base_*forfait*rate;
+  let cf=0;for(let i=j1+1;i<NW;i++)cf+=SER.cf[i];const divY=DIVS.filter(v=>v.hist&&new Date(v.pay).getUTCFullYear()===cy).reduce((a,v)=>a+v.net,0);
+  const actual=SER.v[NW-1]-v0-cf+divY-TX.filter(t=>t.d>=Date.UTC(cy,0,1)).reduce((a,t)=>a+(t.fee||0),0);
+  const fictive=v0*forfait;
+  $('#tblBox3').innerHTML='<tbody>'+[['Waarde op 1 januari '+cy,eur(v0)],['Heffingsvrij vermogen'+(taxP>1?' (2 personen)':''),'−'+eur(free).replace('−','')],['Grondslag',eur(base_)],['Forfaitair rendement (5,88%)',eur(base_*forfait)],['Box 3-belasting (36%)',`<b>${eur(tax)}</b>`],
+   ['Werkelijk rendement dit jaar',`<span class="${cls(actual)}">${eurS(actual)} (${pctS(actual/v0)})</span>`],['Tegenbewijs gunstig?',actual<fictive?'<span class="pill good">Ja, werkelijk lager dan forfait</span>':'<span class="pill neu">Nee</span>']].map(([a,b])=>`<tr><td>${a}</td><td class="n num">${b}</td></tr>`).join('')+'</tbody>';
+  $('#box3Note').textContent='Tarieven 2025 als indicatie, alleen deze portefeuille, zonder schulden of andere bezittingen. Werkelijk rendement = koersverschil plus netto dividend, min kosten.';
+  const b=base();const ys=[];for(let y=2019;y<=cy;y++)ys.push(y);const by=ys.map(y=>+DIVS.filter(v=>v.hist&&new Date(v.pay).getUTCFullYear()===y).reduce((a,v)=>a+v.tax,0).toFixed(2));
+  C('chWht').setOption({textStyle:b.text,grid:{left:8,right:8,top:20,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>eur(v,2)},
+   xAxis:{type:'category',data:ys.map(String),...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v)}},
+   series:[{type:'bar',data:by,barMaxWidth:28,itemStyle:{color:b.cat[3],borderRadius:[4,4,0,0]},label:{show:true,position:'top',color:b.ink2,fontSize:11,formatter:p=>p.value?eur(p.value):''}}]});}
+
+/* ============ VERGELIJKEN ============ */
+const AEXW={Technologie:34,'Financiën':18,'Consumentengoederen':16,Energie:9,Communicatie:8,'Zakelijke diensten':6,Gezondheidszorg:4,Industrie:3,Materialen:2};
+let bmSel='AEX',bmRange=0;
+function bmStats(){const B=BENCH[bmSel].s;const n=bmRange||NW;const i0=Math.max(1,NW-n);
+  // schaduwportefeuille: start met dezelfde waarde, daarna dezelfde stortingen/opnames
+  let u=SER.v[i0]/B[i0];const sh=[];for(let i=i0;i<NW;i++){if(i>i0)u+=SER.cf[i]/B[i];sh.push(u*B[i]);}
+  const pr=[],br=[];for(let i=i0+1;i<NW;i++){pr.push(SER.ret[i]);br.push(B[i]/B[i-1]-1);}
+  const yrs=(NW-1-i0)/52;const tp=SER.idx[NW-1]/SER.idx[i0]-1,tb=B[NW-1]/B[i0]-1;const ap=Math.pow(1+tp,1/yrs)-1,ab=Math.pow(1+tb,1/yrs)-1;
+  const beta=cov(pr,br)/(sd(br)**2);const alpha=ap-(RF+beta*(ab-RF));const te=sd(pr.map((v,k)=>v-br[k]))*Math.sqrt(52);
+  const up=br.map((v,k)=>[v,pr[k]]).filter(a=>a[0]>0),dn=br.map((v,k)=>[v,pr[k]]).filter(a=>a[0]<0);
+  const capUp=mean(up.map(a=>a[1]))/mean(up.map(a=>a[0])),capDn=mean(dn.map(a=>a[1]))/mean(dn.map(a=>a[0]));
+  const flows=[{d:wdate(i0),a:-SER.v[i0]}];for(let i=i0+1;i<NW;i++)if(SER.cf[i])flows.push({d:wdate(i),a:-SER.cf[i]});
+  const divs=DIVS.filter(v=>v.hist&&v.pay>wdate(i0)).map(v=>({d:v.pay,a:v.net}));
+  const irrP=xirr([...flows,...divs,{d:TODAY,a:SER.v[NW-1]}].sort((a,b)=>a.d-b.d)),irrB=xirr([...flows,{d:TODAY,a:sh.at(-1)}]);
+  return {B,i0,sh,tp,tb,ap,ab,beta,alpha,te,capUp,capDn,irrP,irrB,divIn:divs.reduce((a,v)=>a+v.a,0)};}
+function renderBench(){const b=base();
+  $('#bmPick').innerHTML=Object.entries(BENCH).map(([k,v])=>`<button aria-pressed="${k===bmSel}" data-v="${k}">${v.name}</button>`).join('');
+  const S=bmStats();const bn=BENCH[bmSel].name;const diff=SER.v[NW-1]+S.divIn-S.sh.at(-1);
+  $('#bmNote').textContent=`Wat als je elke storting en opname op dezelfde dag in ${bn} had gestoken? Zo vergelijk je eerlijk, inclusief het moment waarop je geld erbij deed. ${bn}: ${BENCH[bmSel].note}${LIVE?'':', gesimuleerd'}.`;
+  const k=(l,v,s,c='')=>`<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`;
+  $('#bmKpis').innerHTML=[k('Voorsprong in euro',eurS(diff),`waarde plus ontvangen dividend t.o.v. ${eur(S.sh.at(-1))}`,cls(diff)),
+   k('Rendement per jaar (IRR)',pct(S.irrP),`${bn}: ${pct(S.irrB)}`,S.irrP>=S.irrB?'up':'down'),
+   k('Tijdgewogen per jaar',pct(S.ap),`${bn}: ${pct(S.ab)}`,S.ap>=S.ab?'up':'down'),
+   k('Alfa per jaar',pctS(S.alpha),`bèta ${nf2.format(S.beta)} · tracking error ${pct(S.te)}`,cls(S.alpha)),
+   k('Mee omhoog / mee omlaag',`${pct(S.capUp,0)} / ${pct(S.capDn,0)}`,'deel van stijgende en dalende weken dat je meedoet','')].join('');
+  const xs=[];for(let i=S.i0;i<NW;i++)xs.push(i);
+  C('chShadow').setOption({textStyle:b.text,grid:{left:8,right:12,top:14,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',valueFormatter:v=>eur(v)},
+   xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
+   series:[{name:'Jouw portefeuille',type:'line',showSymbol:false,data:xs.map(i=>[wdate(i),Math.round(SER.v[i])]),lineStyle:{color:b.acc,width:2},itemStyle:{color:b.acc},areaStyle:{color:hexA(b.acc,.12)}},
+    {name:'Zelfde stortingen in '+bn,type:'line',showSymbol:false,data:xs.map((i,k)=>[wdate(i),Math.round(S.sh[k])]),lineStyle:{color:b.mkt,width:2,type:'dashed'},itemStyle:{color:b.mkt}},
+    {name:'Netto inleg',type:'line',step:'end',showSymbol:false,data:xs.map(i=>[wdate(i),Math.round(SER.inv[i])]),lineStyle:{color:b.ink3,width:1},itemStyle:{color:b.ink3}}]});
+  const ex=xs.map(i=>[wdate(i),+((SER.idx[i]/SER.idx[S.i0])/(S.B[i]/S.B[S.i0])*100-100).toFixed(2)]);
+  C('chExcess').setOption({textStyle:b.text,grid:{left:8,right:12,top:14,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',valueFormatter:v=>pctS(v/100)},
+   xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{name:'Voor',type:'line',showSymbol:false,data:ex.map(([t,v])=>[t,Math.max(0,v)]),lineStyle:{width:0},itemStyle:{color:b.good},areaStyle:{color:hexA(b.good,.22)},tooltip:{show:false}},
+    {name:'Achter',type:'line',showSymbol:false,data:ex.map(([t,v])=>[t,Math.min(0,v)]),lineStyle:{width:0},itemStyle:{color:b.bad},areaStyle:{color:hexA(b.bad,.22)},tooltip:{show:false}},
+    {name:'Voorsprong',type:'line',showSymbol:false,data:ex,lineStyle:{width:1.6,color:b.ink2},itemStyle:{color:b.ink2},markLine:{silent:true,symbol:'none',data:[{yAxis:0}],lineStyle:{color:b.ink3},label:{show:false}}}]});
+  const uw=a=>{let pk=a[S.i0];return xs.map(i=>{pk=Math.max(pk,a[i]);return +((a[i]/pk-1)*100).toFixed(2);});};const up=uw(SER.idx),ub=uw(S.B);
+  C('chDD').setOption({textStyle:b.text,grid:{left:8,right:12,top:14,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',valueFormatter:v=>pct(v/100)},
+   xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',max:0,...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{name:'Portefeuille',type:'line',showSymbol:false,data:xs.map((i,k)=>[wdate(i),up[k]]),lineStyle:{color:b.acc,width:1.6},itemStyle:{color:b.acc},areaStyle:{color:hexA(b.acc,.15)}},
+    {name:bn,type:'line',showSymbol:false,data:xs.map((i,k)=>[wdate(i),ub[k]]),lineStyle:{color:b.mkt,width:1.6,type:'dashed'},itemStyle:{color:b.mkt}}]});
+  // kalenderjaren
+  const cy=new Date(TODAY).getUTCFullYear();const years=[];for(let y=2019;y<=cy;y++)years.push(y);
+  const yret=(arr,y)=>{const a=widx(Date.UTC(y,0,1)),z=y===cy?NW-1:widx(Date.UTC(y+1,0,1));return arr[z]/arr[Math.max(a,y===2019?1:a)]-1;};
+  C('chYears').setOption({textStyle:b.text,legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},grid:{left:8,right:8,top:34,bottom:8,containLabel:true},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>pctS(v/100)},
+   xAxis:{type:'category',data:years.map(y=>y===cy?y+' t/m nu':String(y)),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{name:'Portefeuille',type:'bar',barGap:'10%',data:years.map(y=>+(yret(SER.idx,y)*100).toFixed(1)),itemStyle:{color:b.acc,borderRadius:3}},{name:bn,type:'bar',data:years.map(y=>+(yret(S.B,y)*100).toFixed(1)),itemStyle:{color:b.mkt,borderRadius:3}}]});
+  // sectorweging vs AEX
+  const pw={};OPEN.forEach(x=>pw[x.sec]=(pw[x.sec]||0)+x.w*100);const secs=[...new Set([...Object.keys(AEXW),...Object.keys(pw)])].map(s=>[s,(pw[s]||0)-(AEXW[s]||0)]).sort((a,b)=>a[1]-b[1]);
+  C('chSecW').setOption({textStyle:b.text,grid:{left:8,right:40,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>{const s=p.name;return `<b>${s}</b><br>Jij ${nf2.format(pw[s]||0)}% · AEX ${AEXW[s]||0}%`;}},
+   xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>(v>0?'+':'')+v}},yAxis:{type:'category',data:secs.map(s=>s[0]),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2}},
+   series:[{type:'bar',barWidth:12,data:secs.map(s=>({value:+s[1].toFixed(1),name:s[0],itemStyle:{color:s[1]>=0?b.cat[1]:b.cat[0],borderRadius:s[1]>=0?[0,4,4,0]:[4,0,0,4]}})),label:{show:true,position:'right',color:b.ink2,fontSize:11,formatter:p=>(p.value>0?'+':'')+nf2.format(p.value).replace(/,?0+$/,'')}}]});
+  // maandrendementen
+  const cells=[];const mret={};for(let i=1;i<NW;i++){const d=new Date(wdate(i));const key=d.getUTCFullYear()+'-'+d.getUTCMonth();mret[key]=(mret[key]??1)*(1+SER.ret[i]);}
+  years.forEach((y,yi)=>{for(let m=0;m<12;m++){const v=mret[y+'-'+m];if(v!==undefined)cells.push([m,yi,+((v-1)*100).toFixed(1)]);}
+    cells.push([12,yi,+(yret(SER.idx,y)*100).toFixed(1)]);cells.push([13,yi,+((yret(SER.idx,y)-yret(S.B,y))*100).toFixed(1)]);});
+  C('chMonths').setOption({textStyle:b.text,grid:{left:8,right:8,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`${p.value[0]<12?MONTHS[p.value[0]]+' ':p.value[0]===12?'Heel ':'Verschil met '+bn+', '}${years[p.value[1]]}: ${pctS(p.value[2]/100)}`},
+   xAxis:{type:'category',data:[...MONTHS,'Jaar','vs '+bmSel],position:'top',...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600}},yAxis:{type:'category',data:years.map(String),inverse:true,...b.ax,splitLine:{show:false}},
+   visualMap:{show:false,min:-8,max:8,dimension:2,inRange:{color:[b.bad,css('--div-mid'),b.good]}},
+   series:[{type:'heatmap',data:cells,itemStyle:{borderColor:b.sf,borderWidth:2,borderRadius:3},label:{show:true,fontSize:11,color:b.ink,formatter:p=>nf2.format(p.value[2]).replace(/(,\d)\d$/,'$1')}}]});}
+
 /* ============ drawer ============ */
 function openDrawer(t){const x=BY[t];if(!x||!x.q)return;const dr=$('#drawer');const nextD=DIVS.find(v=>v.t===t&&!v.hist);
   dr.innerHTML=`<button class="x" id="dx" aria-label="Sluiten">×</button>
    <div class="tk" style="padding-right:44px">${glyph(x.s,44)}<div><h2 style="font-size:22px">${x.n}</h2><small style="max-width:none">${x.t} · ${x.ex} · ${x.isin}</small></div></div>
-   <div class="hero"><div class="stat"><span class="l">Koers</span><span class="v num">${px(x)} <small class="${cls(x.day)}" style="font-size:13px">${pctS(x.day,2)}</small></span></div><div class="stat"><span class="l">Reële waarde</span><span class="v num">${px(x,x.fv)}</span></div></div>
+   <div class="hero"><div class="stat"><span class="l">Koers</span><span class="v num">${px(x)} <small class="${cls(x.day)}" style="font-size:13px">${pctS(x.day,2)}</small></span></div><div class="stat"><span class="l">${FV_U}</span><span class="v num">${px(x,x.fv)}</span></div></div>
    <div>${valPill(x)}</div>
-   <div><h3 style="margin-bottom:4px">Koers, 3 jaar</h3><div id="chDrawer" style="height:200px"></div><div class="legend"><span><i class="line" style="background:var(--accent)"></i>Koers</span><span><i class="dash"></i>Reële waarde nu</span><span><i style="background:var(--ink-3);border-radius:50%"></i>Aankoop</span></div></div>
+   <div><h3 style="margin-bottom:4px">Koers, 3 jaar</h3><div id="chDrawer" style="height:200px"></div><div class="legend"><span><i class="line" style="background:var(--accent)"></i>Koers</span><span><i class="dash"></i>${FV_U} nu</span><span><i style="background:var(--ink-3);border-radius:50%"></i>Aankoop</span></div></div>
    <div><h3 style="margin-bottom:4px">Kompasscore</h3><div id="chDrawerR" style="height:210px"></div></div>
    <div class="dl">${[['Aantal',nf0.format(x.q)],['Gemiddelde aankoopprijs',px(x,x.avgL)],['Waarde',eur(x.val)],['Gewicht',pct(x.w)],['Totaal resultaat',`<span class="${cls(x.totRes)}">${eurS(x.totRes)} (${pctS(x.totPct)})</span>`],['Ontvangen dividend netto',eur(pos[t].divG-pos[t].divT)],['Dividendrendement',pct(x.yld,2)],['Volgende betaling',nextD?fdate(nextD.pay)+' · '+eur(nextD.net,2):'geen dividend'],['Sector',x.sec],['Branche',x.ind]].map(([a,b])=>`<div><span>${a}</span><b>${b}</b></div>`).join('')}</div>`;
   dr.hidden=false;$('#scrim').hidden=false;$('#dx').focus();$('#dx').onclick=closeDrawer;
@@ -411,19 +584,21 @@ document.addEventListener('click',e=>{const tr=e.target.closest('tr.click');if(t
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.closest&&e.target.closest('tr.click');if(tr)openDrawer(tr.dataset.t);}});
 
 /* ============ routing & controls ============ */
-const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderHoldings();},
- analyse:()=>{renderRadar();renderLift();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
- waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
- rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, nieuws:renderNews, datamodel:renderEnts};
+const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTree();renderSignals();renderHoldings();},
+ analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
+ waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderTax();renderCal();},
+ rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
 function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
   $$('.tabs a').forEach(a=>a.setAttribute('aria-current',a.getAttribute('href')==='#'+cur?'page':'false'));
   Object.keys(charts).forEach(k=>{charts[k].dispose();delete charts[k];});VIEWS[cur]();}
 window.addEventListener('hashchange',()=>{show();window.scrollTo(0,0);});
 function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;$$(id+' button').forEach(x=>x.setAttribute('aria-pressed',x===bt));fn(bt.dataset);});}
+segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
+$('#bmPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){bmSel=bt.dataset.v;renderBench();}});
 segBind('#ovMode',d=>{ovMode=d.v;renderValue();});segBind('#ovRange',d=>{ovRange=+d.v;renderValue();});
 segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#txPick',d=>{txSel=d.v;renderTx();});
-$('#axisPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){axisSel=+bt.dataset.k;renderLift();}});
+$('#axisPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){axisSel=+bt.dataset.k;renderLift();renderChecks();}});
 $('#stripPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){stripSel=+bt.dataset.i;renderStrip();}});
 $('#newsFilters').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){newsF=bt.dataset.c;renderNews();}});
 $('#calPrev').onclick=()=>{const d=new Date(calM);calM=Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1);renderCal();};
@@ -435,4 +610,4 @@ let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>
 const rerender=()=>{show();const open=!$('#drawer').hidden;};
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rerender);}catch(_){}
 new MutationObserver(rerender).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-show();
+renderSource();show();

@@ -16,13 +16,13 @@
 <header class="top">
   <div class="wrap">
     <div class="id">
-      <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--accent)"/><polygon points="17,6 27.5,13.6 23.5,26 10.5,26 6.5,13.6" fill="none" stroke="var(--accent-ink)" stroke-width="1.6" opacity=".55"/><polygon points="17,9.5 25,14.5 21.8,23.5 12.6,24 9.6,15" fill="var(--accent-ink)"/></svg>
+      <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><rect x=".5" y=".5" width="33" height="33" rx="9.5" fill="#0f222b" stroke="var(--accent)" stroke-opacity=".55"/><circle cx="17" cy="17" r="11" fill="none" stroke="var(--line-2)"/><polygon points="17,5.5 19.2,15 17,17 14.8,15" fill="var(--accent)"/><polygon points="17,28.5 14.8,19 17,17 19.2,19" fill="var(--ink-3)"/><circle cx="17" cy="17" r="1.6" fill="var(--ink)"/></svg>
       <div>
-        <h1>Portefeuille Kompas</h1>
-        <div class="sub">Voorbeeldportefeuille "Lange termijn" · koersen t/m vr 13 nov 2026</div>
+        <h1>Portefeuille <em>Kompas</em></h1>
+        <div class="sub" id="subLine">Voorbeeldportefeuille "Lange termijn"</div>
       </div>
       <span class="spacer"></span>
-      <span class="badge">Prototype · voorbeelddata</span>
+      <span class="badge" id="srcBadge">Prototype · voorbeelddata</span>
     </div>
     <nav class="tabs" aria-label="Weergaven">
       <a href="#overzicht">Overzicht</a>
@@ -30,6 +30,7 @@
       <a href="#waardering">Waardering</a>
       <a href="#dividend">Dividend</a>
       <a href="#rendement">Rendement</a>
+      <a href="#vergelijken">Vergelijken</a>
       <a href="#nieuws">Nieuws</a>
       <a href="#datamodel">Datamodel</a>
     </nav>
@@ -59,6 +60,16 @@
     </div>
   </div>
   <div class="kpis" id="ovKpis"></div>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Portefeuillekaart</h2><p>Vlakgrootte is gewicht, kleur is de koersbeweging. Kies de periode.</p></div><div class="seg" id="tmPick"><button aria-pressed="true" data-v="day">Vandaag</button><button aria-pressed="false" data-v="1">1 week</button><button aria-pressed="false" data-v="4">1 mnd</button><button aria-pressed="false" data-v="52">1 jaar</button></div></header>
+      <div class="chart" id="chTree" style="height:340px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Signalen</h2><p>Automatisch uit je posities, koersen en dividenden.</p></div></header>
+      <div id="signals" class="signals"></div>
+    </div>
+  </div>
   <div class="panel">
     <header><div class="t"><h2>Posities</h2><p>Klik op een positie voor details.</p></div><span class="badge" id="posCount"></span></header>
     <div class="tw"><table id="tblHoldings"></table></div>
@@ -77,6 +88,9 @@
         <div class="lift"><div><h4>Trekt omhoog</h4><div id="liftUp"></div></div><div><h4>Drukt</h4><div id="liftDown"></div></div></div>
       </div>
     </div>
+    <h3 style="margin:22px 0 4px">Waar de score vandaan komt</h3>
+    <p class="note" style="margin:0 0 10px">Elke score is het aantal geslaagde checks, berekend uit koersen en kerncijfers. Beweeg over een bolletje voor de uitleg.</p>
+    <div class="tw"><table class="checks" id="tblChecks"></table></div>
   </div>
   <div class="panel">
     <header><div class="t"><h2>Posities op één lijn</h2><p id="stripDesc"></p></div><div class="seg" id="stripPick"></div></header>
@@ -147,6 +161,13 @@
     </div>
   </div>
   <div class="panel">
+    <header><div class="t"><h2>Belasting</h2><p>Indicatie voor de Nederlandse aangifte. Geen belastingadvies.</p></div><div class="seg" id="taxPartner"><button aria-pressed="true" data-v="1">Alleen</button><button aria-pressed="false" data-v="2">Met fiscaal partner</button></div></header>
+    <div class="grid g-1-1">
+      <div><h3>Box 3 over dit jaar</h3><div class="tw"><table id="tblBox3"></table></div><p class="note" id="box3Note"></p></div>
+      <div><h3>Verrekenbare bronbelasting</h3><div class="chart short" id="chWht"></div><p class="note">Ingehouden dividendbelasting (15%) verreken je met je inkomstenbelasting. Bij Amerikaanse aandelen geldt 15% via het W-8BEN-formulier.</p></div>
+    </div>
+  </div>
+  <div class="panel">
     <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata. Data na vandaag zijn schattingen op basis van het vorige jaar.</p></div><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
     <div class="cal" id="cal"></div>
     <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span></div>
@@ -179,6 +200,41 @@
   </div>
 </section>
 
+<!-- VERGELIJKEN -->
+<section class="view" id="v-vergelijken" hidden>
+  <div class="panel">
+    <header><div class="t"><h2>Vergelijk met een benchmark</h2><p id="bmNote">Wat als je elke storting en opname op dezelfde dag in de benchmark had gestoken? Zo vergelijk je eerlijk, inclusief het moment waarop je geld erbij deed.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" id="bmPick"></div><div class="seg" id="bmRange"><button aria-pressed="false" data-v="52">1J</button><button aria-pressed="false" data-v="156">3J</button><button aria-pressed="false" data-v="260">5J</button><button aria-pressed="true" data-v="0">Alles</button></div></div></header>
+    <div class="kpis" id="bmKpis" style="margin-bottom:14px"></div>
+    <div class="chart" id="chShadow"></div>
+    <div class="legend"><span><i class="line" style="background:var(--accent)"></i>Jouw portefeuille</span><span><i class="dash"></i>Zelfde stortingen in benchmark</span><span><i class="line" style="background:var(--ink-3)"></i>Netto inleg</span></div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Voorsprong op de benchmark</h2><p>Cumulatief verschil in tijdgewogen rendement. Boven nul ligt je portefeuille voor.</p></div></header>
+      <div class="chart" id="chExcess"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Daling vanaf de top</h2><p>Hoe diep je portefeuille en de benchmark onder hun vorige hoogtepunt zaten.</p></div></header>
+      <div class="chart" id="chDD"></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Per kalenderjaar</h2><p>Tijdgewogen rendement per jaar.</p></div></header>
+      <div class="chart" id="chYears"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Sectorweging tegenover de AEX</h2><p>Over- en onderwogen sectoren, in procentpunten. AEX-wegingen zijn een benadering.</p></div></header>
+      <div class="chart" id="chSecW"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Rendement per maand</h2><p>Tijdgewogen rendement van je portefeuille per maand, en het verschil met de benchmark per jaar.</p></div></header>
+    <div class="tw"><div class="chart" id="chMonths" style="height:320px;min-width:720px"></div></div>
+  </div>
+</section>
+
 <!-- NIEUWS -->
 <section class="view" id="v-nieuws" hidden>
   <div class="panel">
@@ -196,6 +252,7 @@
 </section>
 
 </div></main>
+<footer class="wrap site"><span><b>Portefeuille Kompas</b> · prototype voor IEX.nl</span><span id="footSrc">Geen beleggingsadvies. Koersen kunnen vertraagd zijn.</span></footer>
 
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden aria-label="Positiedetails"></aside>
