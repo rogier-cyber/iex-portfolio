@@ -3,7 +3,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 const r = (p) => readFile(new URL(`../public/${p}`, import.meta.url), "utf8");
 const [html, css, data, app] = await Promise.all([r("index.html"), r("css/app.css"), r("js/data/mock-portfolio.js"), r("js/app.js")]);
-const js = data.replace(/^export /gm, "") + "\n" + app.replace(/^import .*$/m, "");
+import { readdir } from "node:fs/promises";
+const logoDir = new URL("../public/logos/", import.meta.url);
+const logos = {};
+for (const f of await readdir(logoDir)) logos[f.replace(".webp", "")] = "data:image/webp;base64," + (await readFile(new URL(f, logoDir))).toString("base64");
+const js = data.replace(/^export /gm, "") + "\nconst LOGOS=" + JSON.stringify(logos) + ";\n" + app.replace(/^import .*$/m, "").replace("src=\"logos/${x.t}.webp\"", "src=\"${LOGOS[x.t]}\"");
 const body = html.split("<body>")[1].split("</body>")[0];
 const out = `<title>Portefeuille Kompas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
