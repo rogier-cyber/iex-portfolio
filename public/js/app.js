@@ -46,9 +46,11 @@ INS.forEach(x=>{x.fvSrc='Voorbeeldschatting';x.divEvents=null;});
 /* ---- real data from EODHD ---- */
 function align(series){const pts=(series||[]).map(([d,c])=>[D(d),+c]).filter(p=>p[1]>0).sort((a,b)=>a[0]-b[0]);if(pts.length<20)return null;
   const out=new Array(NW);let j=0,last=pts[0][1];for(let i=0;i<NW;i++){const t=wdate(i)+4*DAY;while(j<pts.length&&pts[j][0]<=t){last=pts[j][1];j++;}out[i]=last;}return out;}
+// vangnet: een weekbeweging van meer dan -60% of +150% is bijna altijd een niet-verwerkte split; schaal de oudere koersen mee
+function fixJumps(px){if(!px)return px;for(let i=px.length-1;i>0;i--){const r=px[i]/px[i-1];if(r<.4||r>2.5){for(let j=0;j<i;j++)px[j]*=r;}}return px;}
 if(LIVE){
   const fx=align(LIVE.fx&&LIVE.fx.prices); if(fx) FX=fx.map(v=>1/v); // EODHD gives USD per EUR
-  INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;const px=align(L.prices);
+  INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;const px=fixJumps(align(L.prices));
     if(px){x.px=px;const q=L.quote||{};if(q.last>0){x.p=q.last;x.px[NW-1]=q.last;}else x.p=px[NW-1];
       x.day=q.changePct!=null?q.changePct/100:(x.px[NW-1]/x.px[NW-2]-1);
       x.ret=[0];for(let i=1;i<NW;i++)x.ret.push(Math.log(x.px[i]/x.px[i-1]));x.live=true;}
@@ -198,7 +200,8 @@ function renderHero(){
    ['Gerealiseerd resultaat',eurS(T.real),'uit '+TX.filter(t=>t.ty==='SELL').length+' verkopen',T.real],
    ['Ontvangen dividend (netto)',eur(T.divG-T.divT),'na '+eur(T.divT)+' bronbelasting',1],
    ['Valuta-effect',eurS(T.fxGain),'USD-posities',T.fxGain],
-   ['Verwacht dividend 12 mnd',eur(fwd),pct(fwd/TOTAL,2)+' netto rendement',1]].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c<0?'down':''}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
+   ['Verwacht dividend 12 mnd',eur(fwd),pct(fwd/TOTAL,2)+' netto rendement',1],
+   ['Box 3-indicatie '+new Date(TODAY).getUTCFullYear(),eur(box3Year(new Date(TODAY).getUTCFullYear()).tax),'<a href="#belasting" style="color:var(--accent)">bekijk berekening ›</a>',1]].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c<0?'down':''}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
   $('#posCount').textContent=OPEN.length+' posities';
 }
 let ovMode='value',ovRange=0;
@@ -485,14 +488,30 @@ function renderChecks(){const xs=[...OPEN].sort((a,b)=>b.s[axisSel]-a.s[axisSel]
 
 /* ============ BELASTING ============ */
 let taxP=1;
-function renderTax(){const cy=new Date(TODAY).getUTCFullYear();const j1=widx(Date.UTC(cy,0,1));const v0=SER.v[j1];
-  const free=57684*taxP, forfait=.0588, rate=.36;const base_=Math.max(0,v0-free);const tax=base_*forfait*rate;
+// Box 3 overbruggingsstelsel: heffingsvrij vermogen p.p., forfaitair rendement overige bezittingen, tarief
+const BOX3={2023:{free:57000,f:.0617,r:.32},2024:{free:57000,f:.0604,r:.36},2025:{free:57684,f:.0588,r:.36}};
+const box3Rates=y=>BOX3[y]||BOX3[Math.max(...Object.keys(BOX3).map(Number))];
+function box3Year(y){const R=box3Rates(y);const v0=SER.v[widx(Date.UTC(y,0,1))];const free=R.free*taxP;const base_=Math.max(0,v0-free);return {y,v0,free,base:base_,f:R.f,r:R.r,tax:base_*R.f*R.r,est:!BOX3[y]};}
+function renderTaxHero(){const cy=new Date(TODAY).getUTCFullYear();const b3=box3Year(cy);const fwd=DIVS.filter(v=>!v.hist).reduce((a,v)=>a+v.net,0);
+  const whtY=DIVS.filter(v=>v.hist&&new Date(v.pay).getUTCFullYear()===cy).reduce((a,v)=>a+v.tax,0);
+  $('#taxHero').innerHTML=`<div class="stat"><span class="l">Box 3-indicatie ${cy}</span><span class="big num">${eur(b3.tax)}</span></div>
+   <div class="stat"><span class="l">Grondslag (1 januari)</span><span class="v num">${eur(b3.base)}</span></div>
+   <div class="stat"><span class="l">Als % van je portefeuille</span><span class="v num">${pct(b3.tax/TOTAL,2)}</span></div>
+   <div class="stat"><span class="l">Verrekenbare bronbelasting ${cy}</span><span class="v num">${eur(whtY)}</span></div>`;
+  const ys=[];for(let y=2020;y<=cy;y++)ys.push(y);const rows=ys.filter(y=>y>=2023).map(box3Year);const bb=base();
+  C('chBox3').setOption({textStyle:bb.text,grid:{left:8,right:8,top:24,bottom:8,containLabel:true},tooltip:{...bb.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(bb.ink3,.08)}},valueFormatter:v=>eur(v)},
+   legend:{show:false},xAxis:{type:'category',data:rows.map(r=>String(r.y)+(r.est?'*':'')),...bb.ax,splitLine:{show:false}},
+   yAxis:[{type:'value',...bb.ax,axisLabel:{...bb.ax.axisLabel,formatter:v=>'€ '+nf0.format(v)}}],
+   series:[{name:'Box 3-belasting',type:'bar',data:rows.map(r=>Math.round(r.tax)),barMaxWidth:44,itemStyle:{color:bb.cat[0],borderRadius:[4,4,0,0]},label:{show:true,position:'top',color:bb.ink2,fontSize:11,formatter:p=>eur(p.value)}}]});
+  $('#box3YearNote').textContent=`Per jaar: waarde op 1 januari min heffingsvrij vermogen, keer het forfaitaire rendement, keer het tarief. ${rows.some(r=>r.est)?'* Tarieven voor dit jaar zijn nog niet definitief; berekend met die van 2025.':''}`;}
+function renderTax(){const cy=new Date(TODAY).getUTCFullYear();const j1=widx(Date.UTC(cy,0,1));const b3=box3Year(cy);const v0=b3.v0;
+  const free=b3.free, forfait=b3.f, rate=b3.r;const base_=b3.base;const tax=b3.tax;
   let cf=0;for(let i=j1+1;i<NW;i++)cf+=SER.cf[i];const divY=DIVS.filter(v=>v.hist&&new Date(v.pay).getUTCFullYear()===cy).reduce((a,v)=>a+v.net,0);
   const actual=SER.v[NW-1]-v0-cf+divY-TX.filter(t=>t.d>=Date.UTC(cy,0,1)).reduce((a,t)=>a+(t.fee||0),0);
   const fictive=v0*forfait;
-  $('#tblBox3').innerHTML='<tbody>'+[['Waarde op 1 januari '+cy,eur(v0)],['Heffingsvrij vermogen'+(taxP>1?' (2 personen)':''),'−'+eur(free).replace('−','')],['Grondslag',eur(base_)],['Forfaitair rendement (5,88%)',eur(base_*forfait)],['Box 3-belasting (36%)',`<b>${eur(tax)}</b>`],
+  $('#tblBox3').innerHTML='<tbody>'+[['Waarde op 1 januari '+cy,eur(v0)],['Heffingsvrij vermogen'+(taxP>1?' (2 personen)':''),'−'+eur(free).replace('−','')],['Grondslag',eur(base_)],[`Forfaitair rendement (${nf2.format(forfait*100)}%)`,eur(base_*forfait)],[`Box 3-belasting (${Math.round(rate*100)}%)`,`<b>${eur(tax)}</b>`],
    ['Werkelijk rendement dit jaar',`<span class="${cls(actual)}">${eurS(actual)} (${pctS(actual/v0)})</span>`],['Tegenbewijs gunstig?',actual<fictive?'<span class="pill good">Ja, werkelijk lager dan forfait</span>':'<span class="pill neu">Nee</span>']].map(([a,b])=>`<tr><td>${a}</td><td class="n num">${b}</td></tr>`).join('')+'</tbody>';
-  $('#box3Note').textContent='Tarieven 2025 als indicatie, alleen deze portefeuille, zonder schulden of andere bezittingen. Werkelijk rendement = koersverschil plus netto dividend, min kosten.';
+  $('#box3Note').textContent=(b3.est?'Tarieven 2025 als indicatie (die van '+cy+' zijn nog niet definitief), ':'Tarieven '+cy+', ')+'alleen deze portefeuille, zonder schulden of andere bezittingen. Werkelijk rendement = koersverschil plus netto dividend, min kosten.';
   const b=base();const ys=[];for(let y=2019;y<=cy;y++)ys.push(y);const by=ys.map(y=>+DIVS.filter(v=>v.hist&&new Date(v.pay).getUTCFullYear()===y).reduce((a,v)=>a+v.tax,0).toFixed(2));
   C('chWht').setOption({textStyle:b.text,grid:{left:8,right:8,top:20,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>eur(v,2)},
    xAxis:{type:'category',data:ys.map(String),...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v)}},
@@ -586,7 +605,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.cl
 /* ============ routing & controls ============ */
 const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTree();renderSignals();renderHoldings();},
  analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
- waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderTax();renderCal();},
+ waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
+ belasting:()=>{renderTaxHero();renderTax();},
  rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
 function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
@@ -594,7 +614,7 @@ function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object
   Object.keys(charts).forEach(k=>{charts[k].dispose();delete charts[k];});VIEWS[cur]();}
 window.addEventListener('hashchange',()=>{show();window.scrollTo(0,0);});
 function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;$$(id+' button').forEach(x=>x.setAttribute('aria-pressed',x===bt));fn(bt.dataset);});}
-segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
+segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTaxHero();renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
 $('#bmPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){bmSel=bt.dataset.v;renderBench();}});
 segBind('#ovMode',d=>{ovMode=d.v;renderValue();});segBind('#ovRange',d=>{ovRange=+d.v;renderValue();});
 segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#txPick',d=>{txSel=d.v;renderTx();});

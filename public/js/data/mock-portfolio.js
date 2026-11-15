@@ -26,7 +26,7 @@ export const INS=[
   {t:'WKL',p0:52,n:'Wolters Kluwer',isin:'NL0000395903',ex:'Euronext Amsterdam',sec:'Zakelijke diensten',ind:'Professionele informatie',cty:'Nederland',ccy:'EUR',p:118.0,fv:141,beta:.7,f:'services',iv:.024,al:.0012,s:[4,4,6,4,3],pe:22,g:9,roe:70,de:210,dps:2.42,dm:[[5,20],[9,24]],dmw:[.61,.39],geo:[32,60,6,2]},
   {t:'PRX',p0:58,n:'Prosus',isin:'NL0013654783',ex:'Euronext Amsterdam',sec:'Communicatie',ind:'Internetplatforms',cty:'Nederland',ccy:'EUR',p:52.40,fv:63.1,beta:1.2,f:'tech',iv:.036,al:.0006,s:[5,4,3,4,1],pe:14,g:15,roe:18,de:28,dps:.10,dm:[[10,8]],geo:[20,5,50,25]},
   {t:'MSFT',p0:102,n:'Microsoft',isin:'US5949181045',ex:'Nasdaq',sec:'Technologie',ind:'Software',cty:'Verenigde Staten',ccy:'USD',p:412.0,fv:455,beta:1.1,f:'tech',iv:.026,al:.0016,s:[3,4,6,6,2],pe:31,g:13,roe:33,de:18,dps:3.32,dm:[[3,13],[6,12],[9,11],[12,11]],geo:[27,51,15,7]},
-  {t:'GOOGL',p0:52,n:'Alphabet A',isin:'US02079K3059',ex:'Nasdaq',sec:'Communicatie',ind:'Internetplatforms',cty:'Verenigde Staten',ccy:'USD',p:186.0,fv:214,beta:1.1,f:'tech',iv:.032,al:.0014,s:[4,4,6,6,1],pe:21,g:12,roe:31,de:8,dps:.84,dm:[[3,16],[6,16],[9,15],[12,15]],geo:[29,49,16,6]},
+  {t:'KPN',p0:2.75,n:'KPN',isin:'NL0000009082',ex:'Euronext Amsterdam',sec:'Communicatie',ind:'Telecom',cty:'Nederland',ccy:'EUR',p:3.95,fv:4.3,beta:.4,f:'services',iv:.02,al:.0007,s:[3,2,4,3,5],pe:18,g:5,roe:18,de:140,dps:.175,dm:[[4,16],[7,31]],dmw:[.6,.4],geo:[100,0,0,0]},
   {t:'PHIA',p0:33,n:'Philips',isin:'NL0000009538',ex:'Euronext Amsterdam',sec:'Gezondheidszorg',ind:'Medische apparatuur',cty:'Nederland',ccy:'EUR',p:24.10,fv:26,beta:.9,f:'health',iv:.04,al:-.0022,s:[3,3,1,3,3],pe:18,g:8,roe:4,de:62,dps:.85,dm:[[5,15]],geo:[30,40,20,10]},
 ];
 export const MARKET={name:'AEX',pe:15.5,g:9,roe:14,de:70,yld:.030,s:[3.4,3.2,3.6,3.7,3.4],vol:null};
@@ -34,10 +34,10 @@ export const MARKET={name:'AEX',pe:15.5,g:9,roe:14,de:70,yld:.030,s:[3.4,3.2,3.6
 export const TXIN=[
   ['2019-01-07','BUY','SHELL',400],['2019-01-07','BUY','INGA',600],['2019-02-04','BUY','ASML',10],['2019-03-04','BUY','PHIA',300],
   ['2019-06-03','BUY','UNA',150],['2019-09-02','BUY','MSFT',25],['2020-01-06','BUY','AD',250],['2020-04-06','BUY','INGA',400],
-  ['2020-05-04','BUY','ASM',15],['2020-08-03','BUY','GOOGL',60],['2020-10-05','BUY','SHELL',300],['2021-01-04','BUY','WKL',70],
+  ['2020-05-04','BUY','ASM',15],['2020-08-03','BUY','KPN',1500],['2020-10-05','BUY','SHELL',300],['2021-01-04','BUY','WKL',70],
   ['2021-03-01','BUY','ASML',5],['2021-06-07','BUY','BESI',60],['2021-09-06','BUY','NN',180],['2022-01-03','SELL','PHIA',300],
   ['2022-03-07','BUY','PRX',200],['2022-06-06','BUY','ADYEN',6],['2022-10-03','BUY','MSFT',15],['2022-11-07','BUY','AD',150],
-  ['2023-01-02','BUY','GOOGL',60],['2023-03-06','BUY','HEIA',120],['2023-06-05','SELL','SHELL',200],['2023-10-02','BUY','ASML',5],
+  ['2023-01-02','BUY','KPN',1200],['2023-03-06','BUY','HEIA',120],['2023-06-05','SELL','SHELL',200],['2023-10-02','BUY','ASML',5],
   ['2024-02-05','BUY','ADYEN',4],['2024-07-15','SELL','ASML',4],['2024-10-07','BUY','BESI',40],['2025-04-07','BUY','HEIA',80],
 ];
 // Kosten per order (EUR), valutakosten op niet-EUR orders, bronbelasting op dividend

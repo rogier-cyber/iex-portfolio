@@ -29,6 +29,7 @@
       <a href="#analyse">Analyse</a>
       <a href="#waardering">Waardering</a>
       <a href="#dividend">Dividend</a>
+      <a href="#belasting">Box 3</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
       <a href="#nieuws">Nieuws</a>
@@ -161,6 +162,16 @@
     </div>
   </div>
   <div class="panel">
+    <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata. Data na vandaag zijn schattingen op basis van het vorige jaar.</p></div><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
+    <div class="cal" id="cal"></div>
+    <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span></div>
+  </div>
+</section>
+
+<!-- BELASTING -->
+<section class="view" id="v-belasting" hidden>
+  <div class="panel"><header><div class="t hero" id="taxHero"></div></header></div>
+  <div class="panel">
     <header><div class="t"><h2>Belasting</h2><p>Indicatie voor de Nederlandse aangifte. Geen belastingadvies.</p></div><div class="seg" id="taxPartner"><button aria-pressed="true" data-v="1">Alleen</button><button aria-pressed="false" data-v="2">Met fiscaal partner</button></div></header>
     <div class="grid g-1-1">
       <div><h3>Box 3 over dit jaar</h3><div class="tw"><table id="tblBox3"></table></div><p class="note" id="box3Note"></p></div>
@@ -168,9 +179,9 @@
     </div>
   </div>
   <div class="panel">
-    <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata. Data na vandaag zijn schattingen op basis van het vorige jaar.</p></div><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
-    <div class="cal" id="cal"></div>
-    <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span></div>
+    <header><div class="t"><h2>Box 3 door de jaren</h2><p>Hoeveel vermogensbelasting deze portefeuille per jaar zou kosten in het huidige stelsel.</p></div></header>
+    <div class="chart short" id="chBox3"></div>
+    <p class="note" id="box3YearNote"></p>
   </div>
 </section>
 
