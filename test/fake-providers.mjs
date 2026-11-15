@@ -23,7 +23,11 @@ globalThis.fetch = async (u) => {
       : path === "key-metrics-ttm" ? [{ returnOnEquityTTM: 0.35 }]
       : path === "price-target-consensus" ? [{ targetConsensus: 150 }]
       : path === "grades-consensus" ? [{ strongBuy: 3, buy: 10, hold: 5, sell: 1, strongSell: 0, consensus: "Buy" }]
-      : path === "analyst-estimates" ? [{ date: `${new Date().getFullYear()+1}-12-31`, epsAvg: 4.6 }, { date: `${new Date().getFullYear()}-12-31`, epsAvg: 4.0 }] : [];
+      : path === "analyst-estimates" ? [{ date: `${new Date().getFullYear()+1}-12-31`, epsAvg: 4.6 }, { date: `${new Date().getFullYear()}-12-31`, epsAvg: 4.0 }]
+      : path === "price-target-news" ? [{ publishedDate: "2026-11-03T10:00:00.000Z", analystName: "Test Analist", analystCompany: "Testbank", priceTarget: 3000, adjPriceTarget: 150, priceWhenPosted: 130 }]
+      : path === "grades-news" ? [{ publishedDate: "2026-10-20T10:00:00.000Z", gradingCompany: "Testbank", previousGrade: "Hold", newGrade: "Buy", action: "upgrade" }]
+      : path === "grades-historical" ? [{ date: "2026-11-01", analystRatingsStrongBuy: 3, analystRatingsBuy: 10, analystRatingsHold: 5, analystRatingsSell: 1, analystRatingsStrongSell: 0 }]
+      : path === "insider-trading/search" ? [{ transactionDate: "2026-10-01", filingDate: "2026-10-03", reportingName: "Test Persoon", typeOfOwner: "director", transactionType: "S-Sale", securitiesTransacted: 1000, price: 400, securitiesOwned: 5000 }] : [];
   } else throw new Error("unexpected host " + url.hostname);
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 };

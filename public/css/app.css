@@ -68,7 +68,7 @@ main .wrap{padding-block:22px 60px;display:flex;flex-direction:column;gap:18px}
 .stat .l{font-size:12px;color:var(--ink-3)}
 .stat .v{font-family:var(--f-display);font-size:20px;font-weight:600}
 .up{color:var(--good)} .down{color:var(--bad)}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
 .kpi span{font-size:12px;color:var(--ink-3)}
 .kpi b{font-family:var(--f-display);font-size:21px;font-weight:600}
@@ -212,7 +212,8 @@ body::before{background:var(--bg)}
 .hero .big{font-size:38px;background:linear-gradient(180deg,#fff,#cfdcdf);-webkit-background-clip:text;background-clip:text;color:transparent}
 .up::before{content:"▲";font-size:.62em;margin-right:.35em;vertical-align:.12em}
 .down::before{content:"▼";font-size:.62em;margin-right:.35em;vertical-align:.12em}
-td.up::before,td.down::before,.sub2.up::before,.sub2.down::before,.kpi small.up::before{content:none}
+/* één richtingsteken: pijl in plaats van plus/min (zie signArrows in app.js) */
+.up .up::before,.down .down::before,.up .down::before,.down .up::before{content:none}
 .seg{background:rgba(8,21,27,.6);border:1px solid var(--line)}
 .seg button{color:var(--ink-3)}
 .seg button:hover{color:var(--ink)}
@@ -246,3 +247,11 @@ footer.site b{color:var(--ink-2);font-weight:600}
 .probbar{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--surface-2);margin-right:8px;vertical-align:middle;overflow:hidden}
 .probbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
 .seg.segwrap{display:flex;flex-direction:row;flex-wrap:wrap;width:fit-content;max-width:100%}
+
+/* logo's (uit Guruwatch) en analistenfeed */
+.logo{border-radius:8px;flex:none;object-fit:contain;background:#fff;padding:2px;box-shadow:0 0 0 1px var(--line)}
+.logo.mono{display:inline-grid;place-items:center;background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);font:700 9.5px/1 var(--f-display);letter-spacing:.05em;box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent);padding:0}
+.tk .gl{margin-left:auto;opacity:.85}
+.feedlist{display:flex;flex-direction:column;max-height:560px;overflow:auto}
+.feed{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.feed small{display:block;color:var(--ink-3);font-size:12px;margin-top:3px}

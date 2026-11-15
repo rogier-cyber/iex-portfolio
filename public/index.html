@@ -31,6 +31,7 @@
       <a href="#dividend">Dividend</a>
       <a href="#belasting">Box 3</a>
       <a href="#opties">Opties</a>
+      <a href="#analisten">Analisten</a>
       <a href="#spreiding">Spreiding</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
@@ -224,6 +225,40 @@
     <header><div class="t"><h2>Gesloten optietrades</h2><p id="optClosedCount"></p></div></header>
     <div class="seg segwrap" id="stratPick" style="margin-bottom:12px"></div>
     <div class="tw" style="max-height:520px;overflow:auto"><table id="tblOptClosed"></table></div>
+  </div>
+</section>
+
+<!-- ANALISTEN -->
+<section class="view" id="v-analisten" hidden>
+  <div class="panel"><header><div class="t hero" id="anHero"></div></header><p class="note" id="anSub" style="margin:0"></p></div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Koersdoelen per aandeel</h2><p>Van laagste tot hoogste koersdoel, ten opzichte van de koers nu. Het ruitje is het gemiddelde.</p></div></header>
+      <div class="chart" id="chTargets" style="height:560px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Adviezen</h2><p>Verdeling van kopen, houden en verkopen per aandeel.</p></div></header>
+      <div class="chart" id="chRatings" style="height:560px"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Sentiment door de tijd</h2><p>Aandeel kopen-adviezen per maand, de afgelopen twee jaar. Goud is overwegend positief, blauw overwegend negatief.</p></div></header>
+    <div class="chart" id="chSent" style="height:520px"></div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Momentum en signalen</h2><p>Koersdoelverhogingen min verlagingen, plus twee keer upgrades min downgrades, de laatste 90 dagen. Rekenregel uit Guruwatch.</p></div></header>
+      <div class="tw" style="max-height:560px;overflow:auto"><table id="tblMom"></table></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Laatste analistenacties</h2><p>Nieuwe koersdoelen en adviezen voor jouw aandelen.</p></div></header>
+      <div class="feedlist" id="anFeed"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Insiders</h2><p>Aan- en verkopen door bestuurders en commissarissen van jouw aandelen, per maand. Live komen deze uit SEC-meldingen (Amerikaanse aandelen); het AFM-register voor Nederlandse aandelen kan later worden gekoppeld.</p></div></header>
+    <div class="chart short" id="chIns"></div>
+    <div class="tw" style="max-height:420px;overflow:auto;margin-top:10px"><table id="tblIns"></table></div>
   </div>
 </section>
 

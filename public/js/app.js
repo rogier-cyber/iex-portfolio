@@ -5,6 +5,7 @@ const LIVE=await fetch('/api/market').then(r=>r.ok?r.json():null).then(d=>d&&d.i
 /* ============ helpers ============ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const nf0=new Intl.NumberFormat('nl-NL',{maximumFractionDigits:0});
+const nf1=new Intl.NumberFormat('nl-NL',{maximumFractionDigits:1});
 const nf2=new Intl.NumberFormat('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
 const eur=(v,d=0)=>(v<0?'−':'')+'€ '+(d?nf2:nf0).format(Math.abs(v));
 const eurS=(v,d=0)=>(v>0?'+':'')+eur(v,d);
@@ -219,6 +220,115 @@ OPEN.forEach(x=>{x.vol=sd(x.ret.slice(R0))*Math.sqrt(52);});
 RISK.score=Math.round(Math.min(100,Math.max(0,RISK.vol/.40*45+RISK.beta*15+RISK.top3*40-RISK.dd*40)));
 RISK.mscore=Math.round(Math.min(100,Math.max(0,RISK.mvol/.40*45+15+.42*40-RISK.mdd*40)));
 
+/* ============ ANALISTEN & INSIDERS (rekenregels overgenomen uit guruwatch) ============ */
+const GPOS=/strong buy|buy|outperform|overweight|positive|accumulate|add|market outperform|sector outperform/i, GNEG=/sell|underperform|underweight|negative|reduce/i;
+const gTone=g=>!g?'neu':GNEG.test(g)?'bad':GPOS.test(g)?'good':'neu';
+const ACT={up:'Upgrade',down:'Downgrade',init:'Gestart',reit:'Herhaald',main:'Gehandhaafd'};
+const actLbl=a=>{const x=String(a||'').toLowerCase();for(const k in ACT)if(x.startsWith(k))return ACT[k];return a?a[0].toUpperCase()+a.slice(1):'–';};
+const LEVELS=[['strongBuy','Sterk kopen',5],['buy','Kopen',4],['hold','Houden',3],['sell','Verkopen',2],['strongSell','Sterk verkopen',1]];
+const rScore=c=>{if(!c)return null;const t=LEVELS.reduce((a,[k])=>a+(c[k]||0),0);return t?LEVELS.reduce((a,[k,,w])=>a+w*(c[k]||0),0)/t:null;};
+const rLabel=s=>s==null?'–':s>=4.5?'Sterk kopen':s>=3.75?'Kopen':s>=3.25?'Licht kopen':s>=2.5?'Houden':s>=1.75?'Verkopen':'Sterk verkopen';
+const TXT={P:'Aankoop',S:'Verkoop',A:'Toekenning',M:'Optie-uitoefening',F:'Belasting',G:'Schenking',D:'Teruggave',C:'Conversie',X:'Optie-uitoefening',J:'Overig'};
+const txCode=t=>String(t||'').split('-')[0].toUpperCase();
+const roleNL=t=>{const s=String(t||'').toLowerCase();const o=[];if(/chief executive|\bceo\b/.test(s))o.push('CEO');if(/chief financial|\bcfo\b/.test(s))o.push('CFO');if(/director/.test(s))o.push('bestuurder');if(/officer/.test(s)&&!o.length)o.push('directielid');if(/10%|owner/.test(s))o.push('grootaandeelhouder');return o.join(', ')||t||'insider';};
+// voorbeelddata als er geen live analistendata is
+function mockAnalyst(x){const r=rng('an'+x.t);const firms=['Broker A','Broker B','Broker C','Broker D','Broker E','Broker F','Broker G','Broker H','Broker I','Broker J'];
+  const bull=Math.min(.95,Math.max(.15,.45+(x.fv/x.p-1)*1.6+(r()-.5)*.2));const tot=10+Math.floor(r()*22);
+  const sb=Math.round(tot*bull*.35),b=Math.round(tot*bull)-sb,se=Math.max(0,Math.round(tot*(1-bull)*.25*(r()+.3))),h=Math.max(0,tot-sb-b-se);
+  const cons={strongBuy:sb,buy:b,hold:h,sell:se,strongSell:0};
+  const targets=[],grades=[];const n=9+Math.floor(r()*9);const last={};
+  for(let k=0;k<n;k++){const d=TODAY-Math.floor(r()*360)*DAY;const i=widx(d);const f=firms[Math.floor(r()*firms.length)];
+    const tg=x.fv*(x.px[i]/x.p)**.6*(1+.13*gauss(r));targets.push({date:new Date(d).toISOString().slice(0,10),analyst:null,firm:f+' (voorbeeld)',target:+tg.toFixed(2),priceWhen:+x.px[i].toFixed(2)});}
+  const gl=['Buy','Outperform','Hold','Neutral','Overweight','Underweight','Sell'];
+  for(let k=0;k<3+Math.floor(r()*5);k++){const d=TODAY-Math.floor(r()*300)*DAY;const up=r()<bull;const ng=up?gl[Math.floor(r()*2)]:gl[2+Math.floor(r()*3)];
+    grades.push({date:new Date(d).toISOString().slice(0,10),firm:firms[Math.floor(r()*firms.length)]+' (voorbeeld)',action:r()<.35?(up?'upgrade':'downgrade'):'maintain',newGrade:ng,prevGrade:r()<.5?gl[Math.floor(r()*gl.length)]:null});}
+  const history=[];let bb=bull-.12+(r()-.5)*.2;for(let m=23;m>=0;m--){const d=new Date(TODAY);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-m);bb=Math.min(.97,Math.max(.1,bb+(bull-bb)*.12+(r()-.5)*.07));
+    const t2=tot-Math.round(m/6);const s1=Math.round(t2*bb);history.push({date:d.toISOString().slice(0,10),strongBuy:Math.round(s1*.35),buy:s1-Math.round(s1*.35),hold:Math.max(0,t2-s1-1),sell:1,strongSell:0});}
+  const insiders=[];if(['ASML','ADYEN','INGA','SHELL','MSFT','NVDA','HEIA','BESI'].includes(x.t)){const roles=['CEO','CFO','Bestuurder','Commissaris','Directielid'];
+    for(let k=0;k<4+Math.floor(r()*7);k++){const d=TODAY-Math.floor(r()*540)*DAY;const i=widx(d);const buy=r()<(x.ccy==='USD'?.15:.45);const sh=Math.max(5,Math.round((buy?2000:6000)*(.3+r())/x.p/5)*5);
+      insiders.push({date:new Date(d).toISOString().slice(0,10),filed:new Date(d+2*DAY).toISOString().slice(0,10),name:roles[Math.floor(r()*roles.length)]+' (voorbeeld)',role:null,type:buy?'P-Purchase':'S-Sale',shares:sh,price:+x.px[i].toFixed(2),owned:null});}}
+  return {cons,targets,grades,history,insiders,hi:x.fv*1.25,lo:x.fv*.72,med:x.fv,mock:true};}
+STK.forEach(x=>{const L=LIVE&&LIVE.instruments[x.t];const F=L&&L.fundamentals;
+  if(LIVE){const A=L&&L.analyst;x.an=A?{...A,cons:F&&F.analysts,hi:F&&F.targetHigh,lo:F&&F.targetLow,med:F&&F.targetMedian}:{cons:F&&F.analysts,targets:[],grades:[],history:[],insiders:[],hi:F&&F.targetHigh,lo:F&&F.targetLow,med:F&&F.targetMedian};}
+  else x.an=mockAnalyst(x);
+  const A=x.an;A.targets=(A.targets||[]).slice().sort((a,b)=>a.date<b.date?1:-1);A.grades=(A.grades||[]).slice().sort((a,b)=>a.date<b.date?1:-1);A.history=(A.history||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+  A.insiders=(A.insiders||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+  if(!A.cons&&A.history.length)A.cons=A.history.at(-1);
+  // targets in de koersvaluta; hoog/laag uit losse doelen als de consensus ze niet heeft
+  const act=A.targets.filter(t=>D(t.date)>TODAY-365*DAY);const latest={};act.forEach(t=>{const k=t.firm||t.analyst;if(k&&!latest[k])latest[k]=t;});A.active=Object.values(latest);
+  if(!A.hi&&A.active.length){A.hi=Math.max(...A.active.map(t=>t.target));A.lo=Math.min(...A.active.map(t=>t.target));}
+  A.score=rScore(A.cons);A.n=A.cons?LEVELS.reduce((a,[k])=>a+(A.cons[k]||0),0):0;A.avg=x.fv;A.up=x.fv/x.p-1;
+  // momentum (guruwatch): verhogingen − verlagingen + 2 × (upgrades − downgrades), laatste 90 dagen
+  const since=TODAY-90*DAY;let raises=0,cuts=0,chg=[];const byF={};[...A.targets].reverse().forEach(t=>{const k=t.firm||t.analyst;const prev=byF[k];if(prev&&D(t.date)>=since){if(t.target>prev.target*1.005)raises++;else if(t.target<prev.target*.995)cuts++;chg.push(t.target/prev.target-1);}byF[k]=t;});
+  const g90=A.grades.filter(g=>D(g.date)>=since);const ups=g90.filter(g=>/^up/i.test(g.action||'')).length,downs=g90.filter(g=>/^down/i.test(g.action||'')).length;
+  const avgC=chg.length?chg.reduce((a,b)=>a+b,0)/chg.length:null;
+  A.mom=Math.round((raises-cuts+2*(ups-downs)+(avgC!=null?Math.max(-3,Math.min(3,avgC*20)):0))*10)/10;Object.assign(A,{raises,cuts,ups,downs,new90:A.targets.filter(t=>D(t.date)>=since).length});
+  // consensus surprise: koers en verwachting lopen uiteen
+  const pc=x.px[NW-1]/x.px[NW-14]-1;const old=A.targets.filter(t=>D(t.date)<=TODAY-90*DAY&&D(t.date)>TODAY-455*DAY);const oldL={};old.forEach(t=>{const k=t.firm||t.analyst;if(!oldL[k])oldL[k]=t;});
+  const ov=Object.values(oldL);const tc=ov.length>=2&&A.active.length>=2?mean(A.active.map(t=>t.target))/mean(ov.map(t=>t.target))-1:null;
+  A.surprise=tc==null?null:pc<=-.2&&tc>-.05?'koers-daalt':pc>=.15&&tc<0?'koers-stijgt':tc>=.1&&pc<=0?'doelen-stijgen':tc<=-.1&&pc>=0?'doelen-dalen':null;A.pc=pc;A.tc=tc;
+  // insiders netto (12 mnd) in euro
+  const fx=fxAt(x.ccy,NW-1);A.insNet=A.insiders.filter(t=>D(t.date)>TODAY-365*DAY&&t.price>0).reduce((a,t)=>a+(txCode(t.type)==='P'?1:txCode(t.type)==='S'?-1:0)*t.shares*t.price*fx,0);});
+const SURP={'koers-daalt':['Koers zakt, analisten blijven positief','good'],'koers-stijgt':['Koers stijgt, analisten verlagen hun doelen','bad'],'doelen-stijgen':['Analisten verhogen doelen, koers nog niet mee','good'],'doelen-dalen':['Analisten verlagen doelen, koers nog niet mee','bad']};
+const logo=(x,size=30)=>{const ok=['ASML','ASM','BESI','ADYEN','INGA','NN','UNA','AD','HEIA','WKL','PRX','KPN','PHIA','SAP','MC','MSFT','NVDA'].includes(x.t);
+  return ok?`<img class="logo" src="logos/${x.t}.webp" alt="" width="${size}" height="${size}" loading="lazy">`:`<span class="logo mono" style="width:${size}px;height:${size}px">${x.etf?'ETF':x.t.slice(0,2)}</span>`;};
+
+function renderAnalysts(){const b=base();const cov=STK.filter(x=>x.an.score!=null);const tw=cov.reduce((a,x)=>a+x.ws,0)||1;
+  const wScore=cov.reduce((a,x)=>a+x.ws*x.an.score,0)/tw;const wUp=wavgS(x=>x.an.up);const nA=STK.reduce((a,x)=>a+x.an.n,0);const mom=STK.reduce((a,x)=>a+x.an.mom,0);
+  const insAll=STK.flatMap(x=>x.an.insiders.map(t=>({...t,x})));const insNet=STK.reduce((a,x)=>a+x.an.insNet,0);const mock=STK.some(x=>x.an.mock);
+  $('#anHero').innerHTML=`<div class="stat"><span class="l">Consensus, gewogen</span><span class="big">${rLabel(wScore)}</span></div>
+   <div class="stat"><span class="l">Gemiddelde score</span><span class="v num">${nf2.format(wScore)} <small style="font-size:13px;color:var(--ink-3)">van 5</small></span></div>
+   <div class="stat"><span class="l">Potentieel naar koersdoel</span><span class="v num ${cls(wUp)}">${pctS(wUp)}</span></div>
+   <div class="stat"><span class="l">Momentum 90 dagen</span><span class="v num ${cls(mom)}">${mom>0?'+':''}${nf1.format(mom)}</span></div>
+   <div class="stat"><span class="l">Insiders netto, 12 mnd</span><span class="v num ${cls(insNet)}">${insAll.length?eurS(insNet):'–'}</span></div>`;
+  $('#anSub').textContent=`${nA} analistenoordelen over ${cov.length} van je ${STK.length} aandelen.${mock?' Voorbeelddata: met de FMP-key komen hier de echte koersdoelen, adviezen en insidermeldingen, net als in Guruwatch.':' Bron: Financial Modeling Prep, dezelfde data als Guruwatch.'}`;
+  // koersdoelbereik
+  const xs=STK.filter(x=>x.an.hi&&x.an.lo).sort((a,b2)=>b2.an.up-a.an.up);const rel=v=>v;
+  C('chTargets').setOption({textStyle:b.text,grid:{left:8,right:60,top:24,bottom:24,containLabel:true},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},formatter:p=>{const x=xs[p[0].dataIndex];return `<b>${x.n}</b><br>Koers ${px(x)}<br>Laagste doel ${px(x,x.an.lo)} (${pctS(x.an.lo/x.p-1)})<br>Gemiddeld ${px(x,x.fv)} (${pctS(x.an.up)})<br>Hoogste doel ${px(x,x.an.hi)} (${pctS(x.an.hi/x.p-1)})`;}},
+   xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>pctS(v/100,0)}},yAxis:{type:'category',inverse:true,data:xs.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600}},
+   series:[{name:'Bereik koersdoelen',type:'custom',data:xs.map((x,i)=>[+((x.an.lo/x.p-1)*100).toFixed(1),+((x.an.hi/x.p-1)*100).toFixed(1),i]),encode:{x:[0,1],y:2},
+     renderItem:(params,api)=>{const a=api.coord([api.value(0),api.value(2)]),z=api.coord([api.value(1),api.value(2)]);const h=8;return {type:'rect',shape:{x:a[0],y:a[1]-h/2,width:Math.max(2,z[0]-a[0]),height:h,r:4},style:{fill:hexA(b.acc,.3)}};},z:2},
+    {name:'Gemiddeld doel',type:'scatter',symbol:'diamond',symbolSize:13,data:xs.map(x=>+(x.an.up*100).toFixed(1)),itemStyle:{color:b.acc,borderColor:b.sf,borderWidth:1.5},z:5,
+     label:{show:true,position:'right',distance:10,color:b.ink2,fontSize:11,formatter:p=>pctS(p.value/100)}},
+    {type:'line',data:[],markLine:{silent:true,symbol:'none',data:[{xAxis:0}],lineStyle:{color:b.ink,width:1.5},label:{formatter:'koers nu',color:b.ink2,position:'start'}}}]});
+  // adviesverdeling
+  const ys=STK.filter(x=>x.an.n).sort((a,b2)=>b2.an.score-a.an.score);const LC=[b.good,hexA(b.good,.55),b.ink3,hexA(b.bad,.6),b.bad];
+  C('chRatings').setOption({textStyle:b.text,grid:{left:8,right:8,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2,fontSize:11.5},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},formatter:p=>{const x=ys[p[0].dataIndex];return `<b>${x.n}</b> · ${x.an.n} analisten<br>`+p.map(s=>`${s.marker}${s.seriesName}: ${x.an.cons[LEVELS[s.seriesIndex][0]]||0}`).join('<br>')+`<br><b>${rLabel(x.an.score)} (${nf2.format(x.an.score)})</b>`;}},
+   xAxis:{type:'value',max:100,show:false},yAxis:[{type:'category',inverse:true,data:ys.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600}},{type:'category',inverse:true,position:'right',data:ys.map(x=>rLabel(x.an.score)),axisLine:{show:false},axisTick:{show:false},axisLabel:{color:b.ink3,fontSize:11.5}}],
+   series:LEVELS.map(([k,l],li)=>({name:l,type:'bar',stack:'a',barWidth:12,data:ys.map(x=>+((x.an.cons[k]||0)/x.an.n*100).toFixed(1)),itemStyle:{color:LC[li]},
+    }))});
+  // sentiment door de tijd
+  const months=[];for(let m=23;m>=0;m--){const d=new Date(TODAY);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-m);months.push(d.toISOString().slice(0,7));}
+  const zs=STK.filter(x=>x.an.history.length).sort((a,b2)=>b2.an.score-a.an.score);const cells=[];
+  zs.forEach((x,yi)=>months.forEach((m,mi)=>{const h=[...x.an.history].reverse().find(r=>r.date.slice(0,7)<=m);if(!h)return;const t=LEVELS.reduce((a,[k])=>a+(h[k]||0),0);if(t)cells.push([mi,yi,+(((h.strongBuy+h.buy)/t)*100).toFixed(0)]);}));
+  C('chSent').setOption({textStyle:b.text,grid:{left:8,right:8,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${zs[p.value[1]].t}</b>, ${months[p.value[0]]}<br>${p.value[2]}% kopen-adviezen`},
+   xAxis:{type:'category',data:months.map(m=>MONTHS[+m.slice(5)-1]+(m.slice(5)==='01'?" '"+m.slice(2,4):'')),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:2}},
+   yAxis:{type:'category',inverse:true,data:zs.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600,interval:0}},
+   visualMap:{show:false,min:20,max:90,inRange:{color:[css('--div-neg'),css('--div-mid'),css('--div-pos')]}},
+   series:[{type:'heatmap',data:cells,itemStyle:{borderColor:b.sf,borderWidth:1.5,borderRadius:2}}]});
+  // momentum en signalen
+  const ms=[...STK].sort((a,b2)=>b2.an.mom-a.an.mom);
+  $('#tblMom').innerHTML=`<thead><tr><th>Aandeel</th><th class="n">Momentum</th><th class="n">Doelen ↑ / ↓</th><th class="n">Up / down</th><th>Signaal</th></tr></thead><tbody>`+
+   ms.map(x=>{const A=x.an;const s=A.surprise&&SURP[A.surprise];return `<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${logo(x,26)}<div><b>${x.t}</b><small>${A.n?rLabel(A.score)+' · '+A.n+' analisten':'geen dekking'}</small></div></div></td>
+    <td class="n num ${A.mom>0?'up':A.mom<0?'down':''}"><b>${A.mom>0?'+':''}${nf1.format(A.mom)}</b></td><td class="n num">${A.raises} / ${A.cuts}</td><td class="n num">${A.ups} / ${A.downs}</td>
+    <td>${s?`<span class="pill ${s[1]}">${s[0]}</span>`:'<span style="color:var(--ink-3)">–</span>'}</td></tr>`;}).join('')+'</tbody>';
+  // laatste acties
+  const feed=[...STK.flatMap(x=>x.an.targets.slice(0,12).map(t=>({k:'t',d:t.date,x,t}))),...STK.flatMap(x=>x.an.grades.slice(0,8).map(g=>({k:'g',d:g.date,x,g})))].sort((a,b2)=>a.d<b2.d?1:-1).slice(0,24);
+  $('#anFeed').innerHTML=feed.map(f=>{const x=f.x;if(f.k==='t'){const up=f.t.target/x.p-1;return `<div class="feed">${logo(x,28)}<div><b>${x.t}</b> koersdoel <b class="num">${px(x,f.t.target)}</b> <span class="num ${cls(up)}" style="font-size:12px">${pctS(up)} vs nu</span><small>${f.t.firm||''}${f.t.analyst?' · '+f.t.analyst:''} · ${fdate(D(f.d))}</small></div></div>`;}
+    const g=f.g;return `<div class="feed">${logo(x,28)}<div><b>${x.t}</b> <span class="pill ${/^up/i.test(g.action||'')?'good':/^down/i.test(g.action||'')?'bad':'neu'}">${actLbl(g.action)}</span> <span class="pill ${gTone(g.newGrade)}">${g.newGrade||'–'}</span>${g.prevGrade&&g.prevGrade!==g.newGrade?` <span style="color:var(--ink-3);font-size:12px">was ${g.prevGrade}</span>`:''}<small>${g.firm||''} · ${fdate(D(f.d))}</small></div></div>`;}).join('')||'<p class="note">Geen recente acties.</p>';
+  // insiders
+  const im={};const k0=new Date(TODAY).getUTCFullYear()*12+new Date(TODAY).getUTCMonth()-17;const ks=[];for(let q=k0;q<=k0+17;q++)ks.push(q);
+  insAll.forEach(t=>{const d=new Date(D(t.date));const q=d.getUTCFullYear()*12+d.getUTCMonth();if(q<k0||!(t.price>0))return;const c=txCode(t.type);if(c!=='P'&&c!=='S')return;im[q]=im[q]||{b:0,s:0};im[q][c==='P'?'b':'s']+=t.shares*t.price*fxAt(t.x.ccy,NW-1);});
+  C('chIns').setOption({textStyle:b.text,grid:{left:8,right:8,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>eur(Math.abs(v))},
+   xAxis:{type:'category',data:ks.map(q=>MONTHS[q%12]+(q%12===0?" '"+String(Math.floor(q/12)).slice(2):'')),...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>(v<0?'−':'')+'€ '+nf0.format(Math.abs(v)/1000)+'k'}},
+   series:[{name:'Aankopen',type:'bar',stack:'i',data:ks.map(q=>Math.round(im[q]?.b||0)),itemStyle:{color:b.good,borderRadius:[3,3,0,0]}},{name:'Verkopen',type:'bar',stack:'i',data:ks.map(q=>-Math.round(im[q]?.s||0)),itemStyle:{color:b.bad,borderRadius:[0,0,3,3]}}]});
+  $('#tblIns').innerHTML=insAll.length?`<thead><tr><th>Datum</th><th>Aandeel</th><th>Insider</th><th>Soort</th><th class="n">Aantal</th><th class="n">Prijs</th><th class="n">Waarde</th></tr></thead><tbody>`+
+   insAll.sort((a,b2)=>a.date<b2.date?1:-1).slice(0,40).map(t=>{const c=txCode(t.type);return `<tr><td class="num" title="Gemeld ${t.filed?fdate(D(t.filed)):'–'}">${fdate(D(t.date))}</td><td><div class="tk">${logo(t.x,22)}<b>${t.x.t}</b></div></td><td>${t.name||'–'}${t.role?`<span class="sub2">${roleNL(t.role)}</span>`:''}</td>
+    <td><span class="pill ${c==='P'?'good':c==='S'?'bad':'neu'}">${TXT[c]||t.type||'–'}</span></td><td class="n num">${nf0.format(t.shares)}</td><td class="n num">${t.price>0?px(t.x,t.price):'–'}</td><td class="n num"><b>${t.price>0?eur(t.shares*t.price*fxAt(t.x.ccy,NW-1)):'–'}</b></td></tr>`;}).join('')+'</tbody>':'<tbody><tr><td class="note">Geen insidertransacties gevonden.</td></tr></tbody>';}
+
 /* ============ chart infra ============ */
 const charts={};
 function C(id){if(charts[id]){charts[id].dispose();}const el=document.getElementById(id);const c=echarts.init(el,null,{renderer:'svg'});charts[id]=c;return c;}
@@ -287,7 +397,7 @@ function renderRadarOv(){const b=base();C('chRadarOv').setOption(radarOpt(b));
   $('#kompasLine').innerHTML=`Sterk op <b>${hi[0][0].toLowerCase()}</b> (${nf2.format(hi[0][1])}) en <b>${hi[1][0].toLowerCase()}</b>, het zwakst op <b>${hi[4][0].toLowerCase()}</b> (${nf2.format(hi[4][1])}).`;}
 function renderHoldings(){
   $('#tblHoldings').innerHTML=`<thead><tr><th>Positie</th><th class="n">Koers</th><th>Waardering</th><th class="n">Waarde</th><th>Gewicht</th><th class="n">Totaal resultaat</th><th>6 mnd</th></tr></thead><tbody>`+
-   OPEN.map(x=>`<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${x.etf?'<span class="etfmark">ETF</span>':glyph(x.s)}<div><b>${x.t}</b><small>${x.n}</small></div></div></td>
+   OPEN.map(x=>`<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${logo(x)}<div><b>${x.t}</b><small>${x.n}</small></div>${x.etf?'':`<span class="gl" title="Kompasscore">${glyph(x.s,22)}</span>`}</div></td>
     <td class="n num">${px(x)}<span class="sub2 ${cls(x.day)}">${pctS(x.day,2)}</span></td><td>${valPill(x)}</td>
     <td class="n num">${eur(x.val)}<span class="sub2">${nf0.format(x.q)} st.</span></td>
     <td class="num"><span class="wbar"><i style="width:${Math.min(100,x.w/OPEN[0].w*100)}%"></i></span>${pct(x.w)}</td>
@@ -538,6 +648,8 @@ function renderSignals(){const out=[];const add=(k,ic,t,s)=>out.push({k,ic,t,s})
   OPEN.filter(x=>x.disc<-.1).forEach(x=>add(4,'bad',`${x.t} staat ${pct(-x.disc,0)} boven ${FV_L}`,`Koers ${px(x)}, ${FV_L} ${px(x,x.fv)}`));
   OPEN.forEach(x=>{const hi=Math.max(...x.px.slice(NW-52));const dd=x.p/hi-1;if(dd<-.25)add(5,'bad',`${x.t} staat ${pct(-dd,0)} onder de top van dit jaar`,`Jaarhoog ${px(x,hi)}`);});
   const best=[...OPEN].sort((a,b)=>chg(b,52)-chg(a,52));add(6,'good',`Beste positie dit jaar: ${best[0].t} ${pctS(chg(best[0],52))}`,`Zwakste: ${best.at(-1).t} ${pctS(chg(best.at(-1),52))}`);
+  STK.filter(x=>x.an&&x.an.surprise).forEach(x=>{const S=SURP[x.an.surprise];add(4,S[1],`${x.t}: ${S[0].toLowerCase()}`,`Koers ${pctS(x.an.pc)} in 3 maanden, gemiddeld koersdoel ${pctS(x.an.tc)}`);});
+  STK.filter(x=>x.an&&Math.abs(x.an.mom)>=4).forEach(x=>add(5,x.an.mom>0?'good':'bad',`Analisten ${x.an.mom>0?'steeds positiever':'steeds negatiever'} over ${x.t}`,`${x.an.raises} verhogingen, ${x.an.cuts} verlagingen, ${x.an.ups} upgrades, ${x.an.downs} downgrades in 90 dagen`));
   out.sort((a,b)=>a.k-b.k);
   $('#signals').innerHTML=out.slice(0,8).map(o=>`<div class="sig"><span class="ic ${o.ic}">${o.ic==='good'?'↑':o.ic==='bad'?'!':'i'}</span><div>${o.t}<small>${o.s}</small></div></div>`).join('')||'<p class="note">Geen bijzonderheden.</p>';}
 
@@ -787,7 +899,7 @@ const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTre
  analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
  waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
  belasting:()=>{renderTaxHero();renderTax();},
- opties:renderOptions, spreiding:renderSpread,
+ opties:renderOptions, analisten:renderAnalysts, spreiding:renderSpread,
  rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
 function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
@@ -813,4 +925,10 @@ let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>
 const rerender=()=>{show();const open=!$('#drawer').hidden;};
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rerender);}catch(_){}
 new MutationObserver(rerender).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+// Eén richtingsteken: een getal met + of − krijgt een pijl (▲/▼) en het teken verdwijnt.
+const SIGNRE=/^(\s*)([+−])\s?(?=[€$\d]|CHF|DKK)/;
+function signArrows(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement&&!n.parentElement.closest('svg,script,style,button,.seg,[data-nosign]')&&SIGNRE.test(n.nodeValue)?1:2});
+  const ns=[];while(w.nextNode())ns.push(w.currentNode);
+  ns.forEach(n=>{const m=n.nodeValue.match(SIGNRE);const el=n.parentElement;if(!el.closest('.up,.down'))el.classList.add(m[2]==='+'?'up':'down');n.nodeValue=n.nodeValue.replace(SIGNRE,'$1');});}
+let sgPending=false;new MutationObserver(()=>{if(sgPending)return;sgPending=true;requestAnimationFrame(()=>{sgPending=false;signArrows(document.body);});}).observe(document.body,{childList:true,subtree:true,characterData:false});
 renderSource();show();
