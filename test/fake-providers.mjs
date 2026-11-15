@@ -1,6 +1,6 @@
 // Bootst EODHD- en FMP-antwoorden na (zelfde vorm als de echte API's) om de verwerking te testen zonder key.
 import { loadMarketData } from "../lib/market-data.js";
-const P0 = { "ASML.AS":620,"ASM.AS":480,"BESI.AS":130,"ADYEN.AS":1400,"SHELL.AS":31,"INGA.AS":20,"NN.AS":55,"UNA.AS":52,"AD.AS":35,"HEIA.AS":70,"WKL.AS":120,"PRX.AS":50,"MSFT.US":500,"KPN.AS":3.9,"PHIA.AS":24,"AEX.INDX":940,"AMX.INDX":900,"IWDA.AS":105,"GSPC.INDX":6700,"STOXX50E.INDX":5600,"EURUSD.FOREX":1.16 };
+const P0 = { "ASML.AS":620,"ASM.AS":480,"BESI.AS":130,"ADYEN.AS":1400,"SHELL.AS":31,"INGA.AS":20,"NN.AS":55,"UNA.AS":52,"AD.AS":35,"HEIA.AS":70,"WKL.AS":120,"PRX.AS":50,"MSFT.US":500,"KPN.AS":3.9,"SAP.XETRA":240,"MC.PA":610,"NESN.SW":80,"NOVO-B.CO":320,"NVDA.US":185,"IWDA.AS":110,"VWRL.AS":142,"EMIM.AS":38,"EURCHF.FOREX":.935,"EURDKK.FOREX":7.46,"PHIA.AS":24,"AEX.INDX":940,"AMX.INDX":900,"IWDA.AS":105,"GSPC.INDX":6700,"STOXX50E.INDX":5600,"EURUSD.FOREX":1.16 };
 function series(sym){let s=1;for(const c of sym)s=(s*31+c.charCodeAt(0))%2147483647;const rnd=()=>(s=(s*48271)%2147483647)/2147483647;
   const out=[];let p=P0[sym]*0.45;const d=new Date(Date.UTC(2018,11,31));while(d<new Date()){p*=1+(rnd()-.485)*.06;out.push({date:d.toISOString().slice(0,10),close:+p.toFixed(2),adjusted_close:+p.toFixed(2)});d.setUTCDate(d.getUTCDate()+7);}
   const k=P0[sym]/p;

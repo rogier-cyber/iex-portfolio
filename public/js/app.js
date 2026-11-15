@@ -1,4 +1,4 @@
-import {AXES,AXDESC,INS,MARKET,TXIN,FEE,FXFEE,WHT} from "./data/mock-portfolio.js";
+import {AXES,AXDESC,INS,MARKET,TXIN,FEE,FXFEE,WHT,LOOK,REGION,CCYOF,WHTC,OPT_PLAN,OPT_FEE} from "./data/mock-portfolio.js";
 /* global echarts */
 // Echte marktdata (EODHD via de server) als die er is; anders draait alles op voorbeelddata.
 const LIVE=await fetch('/api/market').then(r=>r.ok?r.json():null).then(d=>d&&d.instruments?d:null).catch(()=>null);
@@ -37,6 +37,7 @@ INS.forEach(x=>{const r=rng('p'+x.t);x.ret=[0];for(let i=1;i<NW;i++)x.ret.push(x
   const rd=rng('d'+x.t); x.day=(rd()-.45)*.035; });
 let AEX=pathFrom(mkt,905.3,487);
 const rF=rng('fx'); const fxr=[0]; for(let i=1;i<NW;i++)fxr.push(.0002+.008*gauss(rF)); let FX=pathFrom(fxr,.8652,.874); // EUR per USD
+const FXS={USD:FX,CHF:(()=>{const r=rng('chf');const a=[0];for(let i=1;i<NW;i++)a.push(.0004+.006*gauss(r));return pathFrom(a,1.072,.889);})(),DKK:(()=>{const r=rng('dkk');const a=[0];for(let i=1;i<NW;i++)a.push(.0004*gauss(r));return pathFrom(a,.1340,.1339);})()};
 // mock benchmarks (replaced by real series below when available)
 const mockIdx=(seed,beta,noise,first,last)=>{const r=rng(seed);const rs=[0];for(let i=1;i<NW;i++)rs.push(.0014+beta*(mkt[i]-.0016)+noise*gauss(r));return pathFrom(rs,last,first);};
 const BENCH={AEX:{name:'AEX',s:null,note:'koersindex'},AMX:{name:'AMX (midkap)',s:mockIdx('amx',.85,.012,520,930),note:'koersindex'},
@@ -49,7 +50,8 @@ function align(series){const pts=(series||[]).map(([d,c])=>[D(d),+c]).filter(p=>
 // vangnet: een weekbeweging van meer dan -60% of +150% is bijna altijd een niet-verwerkte split; schaal de oudere koersen mee
 function fixJumps(px){if(!px)return px;for(let i=px.length-1;i>0;i--){const r=px[i]/px[i-1];if(r<.4||r>2.5){for(let j=0;j<i;j++)px[j]*=r;}}return px;}
 if(LIVE){
-  const fx=align(LIVE.fx&&LIVE.fx.prices); if(fx) FX=fx.map(v=>1/v); // EODHD gives USD per EUR
+  const fx=align(LIVE.fx&&LIVE.fx.prices); if(fx){FX=fx.map(v=>1/v);FXS.USD=FX;} // EODHD gives USD per EUR
+  Object.entries(LIVE.fxs||{}).forEach(([c,f])=>{const a=align(f&&f.prices);if(a&&c!=='USD')FXS[c]=a.map(v=>1/v);});
   INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;const px=fixJumps(align(L.prices));
     if(px){x.px=px;const q=L.quote||{};if(q.last>0){x.p=q.last;x.px[NW-1]=q.last;}else x.p=px[NW-1];
       x.day=q.changePct!=null?q.changePct/100:(x.px[NW-1]/x.px[NW-2]-1);
@@ -66,7 +68,8 @@ if(LIVE){
   const a=LIVE.benchmarks&&LIVE.benchmarks.AEX&&align(LIVE.benchmarks.AEX.prices); if(a)AEX=a;
 }
 BENCH.AEX.s=AEX;
-const fxAt=(ccy,i)=>ccy==='USD'?FX[i]:1;
+const fxAt=(ccy,i)=>ccy==='EUR'||!FXS[ccy]?1:FXS[ccy][i];
+INS.forEach(x=>{x.wht=WHTC[x.cty]??WHT;});
 
 /* ============ ledger: positions, cash flows, dividends ============ */
 const TX=[]; const pos={}; INS.forEach(x=>pos[x.t]={q:0,costE:0,costL:0,fxw:0,real:0,fees:0,divG:0,divT:0});
@@ -79,7 +82,7 @@ function qtyAt(t,d){let q=0;for(const tx of TX){if(tx.t!==t||tx.d>d)continue;if(
 // dividend schedule: history (paid) + forecast (next 12 months)
 const DIVS=[]; const END12=TODAY+365*DAY;
 function pushDiv(x,exd,pay,ps,hist){const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
-  const fx=x.ccy==='USD'?(hist?FX[widx(pay)]:FX[NW-1]):1;const g=q*ps*fx;DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*WHT,net:g*(1-WHT),hist,est:!hist&&!x._declared});}
+  const fx=fxAt(x.ccy,hist?widx(pay):NW-1);const g=q*ps*fx;DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*x.wht,net:g*(1-x.wht),hist,est:!hist&&!x._declared});}
 INS.forEach(x=>{if(!x.divEvents)return;
   x.divEvents.forEach(d=>{if(d.pay<START+20*DAY)return;if(d.pay<=TODAY)pushDiv(x,d.exd,d.pay,d.ps,true);else{x._declared=true;pushDiv(x,d.exd,d.pay,d.ps,false);x._declared=false;}});
   // estimate the next 12 months from the last 12, skipping payments that are already declared
@@ -89,10 +92,10 @@ INS.forEach(x=>{if(!x.dps||x.divEvents)return;const w=x.dmw||x.dm.map(()=>1/x.dm
   for(let y=2019;y<=new Date(END12).getUTCFullYear();y++){const dpsY=x.dps*Math.pow(1.055,y-2026);
     x.dm.forEach(([m,day],k)=>{const pay=Date.UTC(y,m-1,day),exd=pay-24*DAY;if(pay<START+20*DAY||pay>END12)return;
       const hist=pay<=TODAY;const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
-      const ps=dpsY*w[k];const fx=x.ccy==='USD'?(hist?FX[widx(pay)]:FX[NW-1]):1;const g=q*ps*fx;
-      DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*WHT,net:g*(1-WHT),hist});});}});
+      const ps=dpsY*w[k];const fx=fxAt(x.ccy,hist?widx(pay):NW-1);const g=q*ps*fx;
+      DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*x.wht,net:g*(1-x.wht),hist});});}});
 DIVS.sort((a,b)=>a.pay-b.pay);
-DIVS.filter(v=>v.hist).forEach(v=>{pos[v.t].divG+=v.gross;pos[v.t].divT+=v.tax;TX.push({d:v.pay,ty:'DIV',t:v.t,q:v.q,price:v.ps,ccy:v.ccy,fx:v.ccy==='USD'?FX[widx(v.pay)]:1,amt:v.net,fee:0,tax:v.tax});});
+DIVS.filter(v=>v.hist).forEach(v=>{pos[v.t].divG+=v.gross;pos[v.t].divT+=v.tax;TX.push({d:v.pay,ty:'DIV',t:v.t,q:v.q,price:v.ps,ccy:v.ccy,fx:fxAt(v.ccy,widx(v.pay)),amt:v.net,fee:0,tax:v.tax});});
 TX.sort((a,b)=>a.d-b.d);
 
 /* ============ derived positions ============ */
@@ -105,6 +108,9 @@ OPEN.forEach(x=>{x.w=x.val/TOTAL;x.prev=x.p/(1+x.day);x.dayE=x.val-x.val/(1+x.da
   const P=pos[x.t];x.totRes=x.priceGain+x.fxGain+P.real+P.divG-P.divT-P.fees;x.totPct=x.totRes/x.cost;x.disc=(x.fv-x.p)/x.fv;});
 OPEN.sort((a,b)=>b.val-a.val);
 const wavg=f=>OPEN.reduce((a,x)=>a+x.w*f(x),0);
+// aandelen apart: scores, waardering en kerncijfers gaan alleen over losse aandelen, niet over ETF's
+const STK=OPEN.filter(x=>!x.etf), ETFS=OPEN.filter(x=>x.etf);const STOT=STK.reduce((a,x)=>a+x.val,0);STK.forEach(x=>x.ws=x.val/STOT);
+const wavgS=f=>STK.reduce((a,x)=>a+x.ws*f(x),0);
 const FV_L=LIVE?'koersdoel':'reële waarde', FV_U=LIVE?'Koersdoel':'Reële waarde';
 /* ---- Kompasscore: 6 checks per kenmerk, berekend uit de data (geen handmatige scores) ---- */
 const AEXVOL=(()=>{const r=[];for(let i=NW-156;i<NW;i++)r.push(AEX[i]/AEX[i-1]-1);const m=r.reduce((a,b)=>a+b,0)/r.length;return Math.sqrt(r.reduce((a,b)=>a+(b-m)**2,0)/(r.length-1))*Math.sqrt(52);})();
@@ -121,27 +127,76 @@ function checks(x){const vol=(()=>{const r=x.ret.slice(NW-156).map(v=>Math.expm1
    [[bank?'Schuld/EV: niet zinvol bij banken en verzekeraars':'Schuld lager dan eigen vermogen',bank||x.de<100],[bank?'Gereguleerde kapitaalbuffer (aangenomen)':'Schuld/EV lager dan de AEX ('+MARKET.de+'%)',bank||x.de<MARKET.de],['Schuld/EV onder 40%',!bank&&x.de<40],['Vrijwel schuldenvrij (onder 10%)',!bank&&x.de<10],['Minder beweeglijk dan 1,5x de AEX',vol<AEXVOL*1.5],['Daling vanaf piek (1 jaar) kleiner dan 25%',x.px[NW-1]/Math.max(...x.px.slice(NW-52))>.75]],
    [['Keert dividend uit',x.dps>0],['Dividendrendement boven 2%',yl>.02],['Hoger dan de AEX ('+pct(MARKET.yld)+')',yl>MARKET.yld],['Uitkeringsratio onder 90%',x.dps>0&&(x.payout??0)<90],['Geen verlaging in 4 jaar',noCut],['Dividend gegroeid in 5 jaar',grew]]];}
 INS.forEach(x=>{x.checks=checks(x);x.s=x.checks.map(a=>a.filter(c=>c[1]).length);});
-const PSCORE=AXES.map((_,k)=>wavg(x=>x.s[k]));
+const PSCORE=AXES.map((_,k)=>wavgS(x=>x.s[k]));
+
+/* ============ OPTIES: Euronext-opties, Black-Scholes op echte onderliggende koersen ============ */
+const RFR=.025;
+const ncdf=x=>{const t=1/(1+.2316419*Math.abs(x));const d=.3989423*Math.exp(-x*x/2);const p=d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return x>0?1-p:p;};
+const npdf=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+function bs(S,K,T,v,type){if(T<=1e-6){const iv=type==='C'?Math.max(0,S-K):Math.max(0,K-S);return {p:iv,delta:type==='C'?(S>K?1:0):(S<K?-1:0),gamma:0,theta:0,vega:0,itm:iv>0?1:0};}
+  const sq=v*Math.sqrt(T),d1=(Math.log(S/K)+(RFR+v*v/2)*T)/sq,d2=d1-sq,df=Math.exp(-RFR*T);
+  const p=type==='C'?S*ncdf(d1)-K*df*ncdf(d2):K*df*ncdf(-d2)-S*ncdf(-d1);
+  const theta=(-S*npdf(d1)*v/(2*Math.sqrt(T))-(type==='C'?1:-1)*RFR*K*df*ncdf(type==='C'?d2:-d2))/365;
+  return {p:Math.max(p,0),delta:type==='C'?ncdf(d1):ncdf(d1)-1,gamma:npdf(d1)/(S*sq),theta,vega:S*npdf(d1)*Math.sqrt(T)/100,itm:type==='C'?ncdf(d2):ncdf(-d2)};}
+const UND=u=>u==='AEX'?{n:'Mini AEX-index',px:AEX,mult:10,step:5}:{n:BY[u].n,px:BY[u].px,mult:100,step:null};
+const strikeStep=S=>S<5?.1:S<20?.5:S<50?1:S<200?2:S<500?10:20;
+// historische volatiliteit (26 weken) als benadering van de implied vol, puts iets duurder (skew)
+function hvol(u,i){const a=UND(u).px;const r=[];for(let k=Math.max(1,i-26);k<=i;k++)r.push(Math.log(a[k]/a[k-1]));const m=r.reduce((a,b)=>a+b,0)/r.length;const sdv=Math.sqrt(r.reduce((a,b)=>a+(b-m)**2,0)/(r.length-1));return Math.min(.8,Math.max(.12,sdv*Math.sqrt(52)*1.08));}
+const fri3=(y,m)=>{const d=new Date(Date.UTC(y,m,1));const off=(5-d.getUTCDay()+7)%7;return Date.UTC(y,m,1+off+14);};
+function expiryAfter(t,weeks){const d=new Date(t+weeks*7*DAY);let e=fri3(d.getUTCFullYear(),d.getUTCMonth());if(e<t+(weeks-2)*7*DAY){const n=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));e=fri3(n.getUTCFullYear(),n.getUTCMonth());}return e;}
+const r05=v=>Math.max(.05,Math.round(v*20)/20);
+const OPTS=[]; const OPTV=new Array(NW).fill(0); const OPTTX=[];
+OPT_PLAN.forEach(pl=>{const U=UND(pl.u);let i=widx(D(pl.from));const rr=rng('opt'+pl.id);
+  while(i<NW-1){const t0=wdate(i)+4*DAY;const S0=U.px[i];const step=U.step||strikeStep(S0);
+    const K=Math.round(S0*(1+(pl.type==='C'?1:-1)*pl.otm)/step)*step;const E=expiryAfter(t0,pl.weeks);
+    const v0=hvol(pl.u,i)+(pl.type==='P'?.02:0);const p0=r05(bs(S0,K,(E-t0)/(365*DAY),v0,pl.type).p);
+    const o={id:pl.id+'-'+i,pl,u:pl.u,un:U.n,type:pl.type,side:pl.side,n:pl.n,mult:U.mult,K,E,i0:i,t0,p0,close:null};
+    OPTTX.push({d:t0,ty:'OPT',t:pl.u,o,act:pl.side<0?'Schrijf':'Koop',q:pl.n,price:p0,amt:-pl.side*p0*pl.n*U.mult-OPT_FEE*pl.n,fee:OPT_FEE*pl.n});
+    let j=i+1;
+    for(;j<NW;j++){const t=wdate(j)+4*DAY;const S=U.px[j];const T=(E-t)/(365*DAY);
+      if(t>=E){const iv=pl.type==='C'?Math.max(0,S-K):Math.max(0,K-S);o.close={j,t:E,p:iv,how:iv>0?'Expiratie (cash)':'Waardeloos verlopen'};break;}
+      const q=bs(S,K,T,hvol(pl.u,j)+(pl.type==='P'?.02:0),pl.type).p;const wl=(E-t)/(7*DAY);
+      let how=null;
+      if(pl.roll&&S>K*.99&&wl<=2.2)how='Teruggekocht (doorgerold)';
+      else if(pl.stop&&q>p0*pl.stop)how='Teruggekocht (stop)';
+      else if(pl.side<0&&q<p0*.15&&wl>1.2)how='Teruggekocht (80% winst)';
+      else if(pl.exitWeeks&&wl<=pl.exitWeeks)how='Verkocht';
+      else if(pl.hold&&(j-i>=pl.hold||q>p0*(1+pl.take)))how=q>p0*(1+pl.take)?'Verkocht (winstdoel)':'Verkocht';
+      if(how&&j<NW-1){o.close={j,t,p:r05(q),how};break;}
+      OPTV[j]+=pl.side*q*pl.n*U.mult;}
+    if(o.close){const c=o.close;const fee=c.how.startsWith('Waardeloos')?0:OPT_FEE*pl.n;
+      OPTTX.push({d:c.t,ty:'OPT',t:pl.u,o,act:c.how,q:pl.n,price:c.p,amt:pl.side*c.p*pl.n*U.mult-fee,fee});
+      o.pnl=pl.side*(c.p-p0)*pl.n*U.mult-OPT_FEE*pl.n-fee;o.fees=OPT_FEE*pl.n+fee;i=c.j+1+(pl.gap||0);}
+    else{o.fees=OPT_FEE*pl.n;i=NW;}
+    OPTS.push(o);}});
+// open posities: waarde en Greeks vandaag
+const OPEN_OPT=OPTS.filter(o=>!o.close).map(o=>{const U=UND(o.u);const S=U.px[NW-1];const T=Math.max(0,(o.E-TODAY)/(365*DAY));const v=hvol(o.u,NW-1)+(o.type==='P'?.02:0);const g=bs(S,o.K,T,v,o.type);
+  const m=o.side*o.n*o.mult;return Object.assign(o,{S,T,vol:v,g,val:m*g.p,upnl:m*(g.p-o.p0)-o.fees,delta:m*g.delta,deltaE:m*g.delta*S,gamma:m*g.gamma,theta:m*g.theta,vega:m*g.vega,dte:Math.round((o.E-TODAY)/DAY)});});
+OPTV[NW-1]=OPEN_OPT.reduce((a,o)=>a+o.val,0);
+OPTTX.forEach(t=>TX.push(t));TX.sort((a,b)=>a.d-b.d);
+const CLOSED_OPT=OPTS.filter(o=>o.close);
+const OPTT={real:CLOSED_OPT.reduce((a,o)=>a+o.pnl,0),open:OPEN_OPT.reduce((a,o)=>a+o.upnl,0),val:OPTV[NW-1],fees:OPTS.reduce((a,o)=>a+o.fees,0)};
+OPTT.total=OPTT.real+OPTT.open;
 
 // weekly portfolio series
 const SER={v:[],inv:[],cf:[]}; {let inv=0;let ti=0;const q={};INS.forEach(x=>q[x.t]=0);
   const trades=TX.filter(t=>t.ty!=='DIV');
   for(let i=0;i<NW;i++){let cf=0;const wEnd=wdate(i)+6*DAY;
-    while(ti<trades.length&&trades[ti].d<=wEnd){const t=trades[ti];if(t.ty==='BUY'){q[t.t]+=t.q;cf+=-t.amt;}else{q[t.t]-=t.q;cf-=t.amt;}ti++;}
-    inv+=cf;let v=0;INS.forEach(x=>{if(q[x.t])v+=q[x.t]*x.px[i]*fxAt(x.ccy,i);});
+    while(ti<trades.length&&trades[ti].d<=wEnd){const t=trades[ti];if(t.ty==='OPT')cf-=t.amt;else if(t.ty==='BUY'){q[t.t]+=t.q;cf+=-t.amt;}else{q[t.t]-=t.q;cf-=t.amt;}ti++;}
+    inv+=cf;let v=OPTV[i];INS.forEach(x=>{if(q[x.t])v+=q[x.t]*x.px[i]*fxAt(x.ccy,i);});
     SER.v.push(v);SER.inv.push(inv);SER.cf.push(cf);} }
 SER.ret=[0];SER.idx=[100];for(let i=1;i<NW;i++){const r=SER.v[i-1]>0?(SER.v[i]-SER.cf[i])/SER.v[i-1]-1:0;SER.ret.push(r);SER.idx.push(SER.idx[i-1]*(1+r));}
 const AEXR=[0];for(let i=1;i<NW;i++)AEXR.push(AEX[i]/AEX[i-1]-1);
 
 // XIRR
 function xirr(flows){let r=.1;for(let k=0;k<80;k++){let f=0,df=0;const t0=flows[0].d;for(const c of flows){const y=(c.d-t0)/(365.25*DAY);f+=c.a/Math.pow(1+r,y);df+=-y*c.a/Math.pow(1+r,y+1);}const nr=r-f/df;if(!isFinite(nr))break;if(Math.abs(nr-r)<1e-8){r=nr;break;}r=nr;}return r;}
-const flows=TX.map(t=>({d:t.d,a:t.amt}));flows.push({d:TODAY,a:TOTAL});
+const flows=TX.map(t=>({d:t.d,a:t.amt}));flows.push({d:TODAY,a:TOTAL+OPTT.val});
 const IRR=xirr(flows);
 
 // totals
 const SUM=k=>INS.reduce((a,x)=>a+(pos[x.t][k]||0),0);
 const T={priceGain:OPEN.reduce((a,x)=>a+x.priceGain,0),fxGain:OPEN.reduce((a,x)=>a+x.fxGain,0),real:SUM('real'),divG:SUM('divG'),divT:SUM('divT'),fees:SUM('fees')};
-T.total=T.priceGain+T.fxGain+T.real+T.divG-T.divT-T.fees; T.cost=OPEN.reduce((a,x)=>a+x.cost,0);
+T.opt=OPTT.total;T.total=T.priceGain+T.fxGain+T.real+T.divG-T.divT-T.fees+T.opt; T.cost=OPEN.reduce((a,x)=>a+x.cost,0);
 T.invested=SER.inv[LASTI]; T.day=OPEN.reduce((a,x)=>a+x.dayE,0);
 T.twr=SER.idx[LASTI]/100-1; T.aexr=AEX[LASTI]/AEX[0]-1;
 
@@ -185,12 +240,13 @@ function glyph(s,size=30){const c=size/2,R=size/2-2;const pt=(k,r)=>{const a=-Ma
 function spark(x,w=84,h=26){const a=x.px.slice(-26);const mn=Math.min(...a),mx=Math.max(...a);const pts=a.map((v,i)=>[i/(a.length-1)*w,h-2-(v-mn)/(mx-mn||1)*(h-4)]);
   const up=a[a.length-1]>=a[0];const col=up?'var(--good)':'var(--bad)';
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Koers laatste 6 maanden ${up?'gestegen':'gedaald'}" role="img"><polyline points="${pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="2.2" fill="${col}"/></svg>`;}
-const px=(x,v=x.p)=>(x.ccy==='USD'?'$ ':'€ ')+nf2.format(v);
-const valPill=x=>{const d=x.disc;return Math.abs(d)<.05?`<span class="pill neu">rond ${FV_L}</span>`:d>0?`<span class="pill good">${pct(d,0)} onder ${FV_L}</span>`:`<span class="pill bad">${pct(-d,0)} boven ${FV_L}</span>`;};
+const CSYM={EUR:'€ ',USD:'$ ',CHF:'CHF ',DKK:'DKK '};
+const px=(x,v=x.p)=>(CSYM[x.ccy]||x.ccy+' ')+nf2.format(v);
+const valPill=x=>{if(x.etf)return `<span class="pill neu">ETF · ${x.acc?'accumulerend':'uitkerend'} · TER ${nf2.format(x.ter)}%</span>`;const d=x.disc;return Math.abs(d)<.05?`<span class="pill neu">rond ${FV_L}</span>`:d>0?`<span class="pill good">${pct(d,0)} onder ${FV_L}</span>`:`<span class="pill bad">${pct(-d,0)} boven ${FV_L}</span>`;};
 
 /* ============ OVERZICHT ============ */
 function renderHero(){
-  $('#heroStats').innerHTML=`<div class="stat"><span class="l">Totale waarde · ${OPEN.length} posities</span><span class="big num">${eur(TOTAL)}</span></div>
+  $('#heroStats').innerHTML=`<div class="stat"><span class="l">Totale waarde · ${OPEN.length} posities</span><span class="big num">${eur(TOTAL+OPTT.val)}</span></div>
    <div class="stat"><span class="l">Vandaag</span><span class="v num ${cls(T.day)}">${eurS(T.day)} <small style="font-size:13px">${pctS(T.day/(TOTAL-T.day),2)}</small></span></div>
    <div class="stat"><span class="l">Totaal resultaat</span><span class="v num ${cls(T.total)}">${eurS(T.total)}</span></div>
    <div class="stat"><span class="l">Rendement per jaar (IRR)</span><span class="v num ${cls(IRR)}">${pct(IRR)}</span></div>`;
@@ -199,8 +255,9 @@ function renderHero(){
    ['Ongerealiseerd koersresultaat',eurS(T.priceGain),pctS(T.priceGain/T.cost)+' op inleg',T.priceGain],
    ['Gerealiseerd resultaat',eurS(T.real),'uit '+TX.filter(t=>t.ty==='SELL').length+' verkopen',T.real],
    ['Ontvangen dividend (netto)',eur(T.divG-T.divT),'na '+eur(T.divT)+' bronbelasting',1],
-   ['Valuta-effect',eurS(T.fxGain),'USD-posities',T.fxGain],
+   ['Valuta-effect',eurS(T.fxGain),'dollar, frank en kroon',T.fxGain],
    ['Verwacht dividend 12 mnd',eur(fwd),pct(fwd/TOTAL,2)+' netto rendement',1],
+   ['Resultaat opties',eurS(OPTT.total),'<a href="#opties" style="color:var(--accent)">'+OPEN_OPT.length+' lopend, bekijk ›</a>',OPTT.total],
    ['Box 3-indicatie '+new Date(TODAY).getUTCFullYear(),eur(box3Year(new Date(TODAY).getUTCFullYear()).tax),'<a href="#belasting" style="color:var(--accent)">bekijk berekening ›</a>',1]].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c<0?'down':''}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
   $('#posCount').textContent=OPEN.length+' posities';
 }
@@ -230,7 +287,7 @@ function renderRadarOv(){const b=base();C('chRadarOv').setOption(radarOpt(b));
   $('#kompasLine').innerHTML=`Sterk op <b>${hi[0][0].toLowerCase()}</b> (${nf2.format(hi[0][1])}) en <b>${hi[1][0].toLowerCase()}</b>, het zwakst op <b>${hi[4][0].toLowerCase()}</b> (${nf2.format(hi[4][1])}).`;}
 function renderHoldings(){
   $('#tblHoldings').innerHTML=`<thead><tr><th>Positie</th><th class="n">Koers</th><th>Waardering</th><th class="n">Waarde</th><th>Gewicht</th><th class="n">Totaal resultaat</th><th>6 mnd</th></tr></thead><tbody>`+
-   OPEN.map(x=>`<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${glyph(x.s)}<div><b>${x.t}</b><small>${x.n}</small></div></div></td>
+   OPEN.map(x=>`<tr class="click" data-t="${x.t}" tabindex="0"><td><div class="tk">${x.etf?'<span class="etfmark">ETF</span>':glyph(x.s)}<div><b>${x.t}</b><small>${x.n}</small></div></div></td>
     <td class="n num">${px(x)}<span class="sub2 ${cls(x.day)}">${pctS(x.day,2)}</span></td><td>${valPill(x)}</td>
     <td class="n num">${eur(x.val)}<span class="sub2">${nf0.format(x.q)} st.</span></td>
     <td class="num"><span class="wbar"><i style="width:${Math.min(100,x.w/OPEN[0].w*100)}%"></i></span>${pct(x.w)}</td>
@@ -243,7 +300,7 @@ function renderRadar(){const b=base();C('chRadar').setOption(radarOpt(b,true,tru
 function renderLift(){
   $('#axisPick').innerHTML=AXES.map((a,k)=>`<button aria-pressed="${k===axisSel}" data-k="${k}">${a} <span class="num" style="color:var(--ink-3)">${nf2.format(PSCORE[k])}</span></button>`).join('');
   $('#axisDesc').textContent=AXDESC[AXES[axisSel]];
-  const s=[...OPEN].sort((a,b)=>b.s[axisSel]-a.s[axisSel]||b.w-a.w);
+  const s=[...STK].sort((a,b)=>b.s[axisSel]-a.s[axisSel]||b.w-a.w);
   const row=x=>{const v=x.s[axisSel];const col=v>=4?'var(--good)':v>=3?'var(--accent)':'var(--bad)';return `<div class="lrow"><b>${x.t}</b><div class="bar"><i style="width:${v/6*100}%;background:${col}"></i></div><span class="sc">${v}/6</span></div>`;};
   $('#liftUp').innerHTML=s.slice(0,5).map(row).join('');$('#liftDown').innerHTML=s.slice(-5).reverse().map(row).join('');}
 const STRIPS=[
@@ -257,20 +314,20 @@ function renderStrip(){const b=base(),S=STRIPS[stripSel];
   $('#stripPick').innerHTML=STRIPS.map((s,i)=>`<button aria-pressed="${i===stripSel}" data-i="${i}">${s.l}</button>`).join('');
   $('#stripDesc').textContent=S.d;
   const val=x=>S.k==='yld'?x.yld*100:x[S.k];
-  let pts=OPEN.map(x=>({x,v:val(x)}));
+  let pts=STK.map(x=>({x,v:val(x)}));
   const vals=pts.map(p=>p.v).sort((a,b)=>a-b);const q1=vals[Math.floor(vals.length*.25)],q3=vals[Math.floor(vals.length*.75)],lim=q3+3*(q3-q1);
   const hidden=pts.filter(p=>p.v>lim);pts=pts.filter(p=>p.v<=lim);
-  const port=wavg(val);
+  const port=wavgS(val);
   // simple dodge: sort by value and stack rows when bubbles collide
   const mx=Math.max(...pts.map(p=>p.v),S.m,port)*1.08,mn=Math.min(0,...pts.map(p=>p.v));
   const placed=[];pts.sort((a,b)=>b.x.w-a.x.w).forEach(p=>{const span=(mx-mn)*.07;let lane=0;const lanes=[0,1,-1,2,-2,3,-3];for(const L of lanes){if(!placed.some(q=>q.lane===L&&Math.abs(q.v-p.v)<span)){lane=L;break;}}p.lane=lane;placed.push(p);});
   const good=p=>S.low?p.v<=S.m:p.v>=S.m;
   C('chStrip').setOption({textStyle:b.text,grid:{left:16,right:24,top:44,bottom:28},
-   tooltip:{...b.tip,trigger:'item',formatter:p=>p.data.x?`<b>${p.data.x.t}</b> · ${p.data.x.n}<br>${S.l}: ${S.f(+p.data.value[0].toFixed(2))}<br>Gewicht: ${pct(p.data.x.w)}`:''},
+   tooltip:{...b.tip,trigger:'item',formatter:p=>p.data.x?`<b>${p.data.x.t}</b> · ${p.data.x.n}<br>${S.l}: ${S.f(+p.data.value[0].toFixed(2))}<br>Gewicht: ${pct(p.data.x.w)} van de portefeuille`:''},
    xAxis:{type:'value',min:mn,max:mx,...b.ax,splitLine:{show:true,lineStyle:{color:b.line,opacity:.6}},axisLabel:{...b.ax.axisLabel,formatter:v=>S.f(+v.toFixed(1))}},
    yAxis:{type:'value',min:-3.6,max:3.6,show:false},
-   series:[{type:'scatter',data:pts.map(p=>({value:[p.v,p.lane*.95],x:p.x,symbolSize:14+Math.sqrt(p.x.w)*62,itemStyle:{color:good(p)?b.good:b.bad,borderColor:b.sf,borderWidth:2,opacity:.92},
-      label:{show:true,formatter:p.x.t,position:p.x.w>.09?'inside':(p.lane<0?'bottom':'top'),color:p.x.w>.09?'#fff':b.ink2,fontSize:10.5,fontWeight:600}})),
+   series:[{type:'scatter',data:pts.map(p=>({value:[p.v,p.lane*.95],x:p.x,symbolSize:14+Math.sqrt(p.x.ws)*56,itemStyle:{color:good(p)?b.good:b.bad,borderColor:b.sf,borderWidth:2,opacity:.92},
+      label:{show:true,formatter:p.x.t,position:p.x.ws>.1?'inside':(p.lane<0?'bottom':'top'),color:p.x.ws>.1?'#fff':b.ink2,fontSize:10.5,fontWeight:600}})),
      markLine:{silent:true,symbol:'none',data:[
       {xAxis:S.m,lineStyle:{color:b.mkt,type:'dashed',width:1.5},label:{formatter:'AEX '+S.f(+S.m.toFixed(1)),color:b.ink2,position:'end',fontSize:11.5}},
       {xAxis:+port.toFixed(2),lineStyle:{color:b.acc,width:2,type:'solid'},label:{formatter:'Portefeuille '+S.f(+port.toFixed(1)),color:b.acc,fontWeight:600,position:'start',fontSize:11.5}}]}}]});
@@ -293,7 +350,7 @@ function donut(id,data){const b=base();C(id).setOption({textStyle:b.text,tooltip
   series:[{type:'pie',radius:['52%','78%'],center:['30%','50%'],padAngle:1.5,itemStyle:{borderRadius:4,borderColor:b.sf,borderWidth:2},label:{show:false},data:data.map((d,i)=>({...d,itemStyle:{color:b.cat[d.ci??i]}}))}]});}
 function renderGeo(){const R=['Europa','Noord-Amerika','Azië-Pacific','Overig'];const v=R.map((_,k)=>OPEN.reduce((a,x)=>a+x.w*x.geo[k],0));
   donut('chGeo',R.map((n,k)=>({name:n,value:+v[k].toFixed(1)})));
-  const ccy={};OPEN.forEach(x=>ccy[x.ccy]=(ccy[x.ccy]||0)+x.w*100);donut('chCcy',Object.entries(ccy).map(([n,v],i)=>({name:n==='EUR'?'Euro':'Amerikaanse dollar',value:+v.toFixed(1),ci:i===0?0:1})));}
+  const ccy={};OPEN.forEach(x=>ccy[x.ccy]=(ccy[x.ccy]||0)+x.w*100);const CNm={EUR:'Euro',USD:'Amerikaanse dollar',CHF:'Zwitserse frank',DKK:'Deense kroon'};donut('chCcy',Object.entries(ccy).sort((a,b)=>b[1]-a[1]).map(([n,v],i)=>({name:CNm[n]||n,value:+v.toFixed(1),ci:i})));}
 function renderCorr(){const b=base();const xs=[...OPEN].sort((a,b)=>a.sec.localeCompare(b.sec)||b.w-a.w);const n=xs.length;const R=xs.map(x=>x.ret.slice(R0));const data=[];const pairs=[];
   for(let i=0;i<n;i++)for(let j=0;j<i;j++){const c=corr(R[i],R[j]);data.push([j,i,+c.toFixed(2)]);pairs.push([xs[i].t,xs[j].t,c]);}
   C('chCorr').setOption({textStyle:b.text,grid:{left:8,right:8,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${xs[p.value[1]].t} / ${xs[p.value[0]].t}</b><br>Correlatie: ${nf2.format(p.value[2])}`},
@@ -320,16 +377,16 @@ function renderRisk(){
   $('#chVol').setAttribute('aria-label','Rood: meer dan 1,6 keer zo beweeglijk als de AEX');}
 
 /* ============ WAARDERING ============ */
-function renderVal(){const fvTot=OPEN.reduce((a,x)=>a+x.q*x.fv*x.fxNow,0);const under=OPEN.filter(x=>x.disc>0);
-  $('#valHero').innerHTML=`<div class="stat"><span class="l">Waarde portefeuille</span><span class="big num">${eur(TOTAL)}</span></div>
+function renderVal(){const fvTot=STK.reduce((a,x)=>a+x.q*x.fv*x.fxNow,0);const under=STK.filter(x=>x.disc>0);
+  $('#valHero').innerHTML=`<div class="stat"><span class="l">Waarde aandelen (zonder ETF's)</span><span class="big num">${eur(STOT)}</span></div>
    <div class="stat"><span class="l">${LIVE?"Koersdoel analisten, gewogen":"Geschatte reële waarde"}</span><span class="v num">${eur(fvTot)}</span></div>
-   <div class="stat"><span class="l">Verschil</span><span class="v num ${cls(fvTot-TOTAL)}">${pctS((fvTot-TOTAL)/fvTot)} ${fvTot>TOTAL?'onder':'boven'} ${FV_L}</span></div>`;
+   <div class="stat"><span class="l">Verschil</span><span class="v num ${cls(fvTot-STOT)}">${pctS((fvTot-STOT)/fvTot)} ${fvTot>TOTAL?'onder':'boven'} ${FV_L}</span></div>`;
   $('#valKpis').innerHTML=[
-   ['Deel ondergewaardeerd',pct(under.reduce((a,x)=>a+x.w,0),0),under.length+' posities','up'],
-   ['Deel overgewaardeerd',pct(1-under.reduce((a,x)=>a+x.w,0),0),(OPEN.length-under.length)+' posities','down'],
-   ['Gewogen opwaarts potentieel',eurS(fvTot-TOTAL),'als alle posities naar '+FV_L+' gaan',''],
-   ['Gewogen koers/winst',nf2.format(wavg(x=>x.pe))+'x','AEX '+nf2.format(MARKET.pe)+'x','']].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
-  const b=base();const xs=[...OPEN].sort((a,b)=>b.disc-a.disc);
+   ['Deel ondergewaardeerd',pct(under.reduce((a,x)=>a+x.ws,0),0),under.length+' posities','up'],
+   ['Deel overgewaardeerd',pct(1-under.reduce((a,x)=>a+x.ws,0),0),(STK.length-under.length)+' posities','down'],
+   ['Gewogen opwaarts potentieel',eurS(fvTot-STOT),'als alle posities naar '+FV_L+' gaan',''],
+   ['Gewogen koers/winst',nf2.format(wavgS(x=>x.pe))+'x','AEX '+nf2.format(MARKET.pe)+'x','']].map(([l,v,s,c])=>`<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
+  const b=base();const xs=[...STK].sort((a,b)=>b.disc-a.disc);
   C('chVal').setOption({textStyle:b.text,grid:{left:8,right:60,top:8,bottom:24,containLabel:true},
    tooltip:{...b.tip,trigger:'item',formatter:p=>{const x=xs[p.dataIndex];return `<b>${x.t}</b> · ${x.n}<br>Koers ${px(x)} · ${FV_L} ${px(x,x.fv)}<br>${x.disc>0?'Onder':'Boven'} ${FV_L}: ${pct(Math.abs(x.disc))}`;}},
    xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>pctS(v/100,0)}},
@@ -374,7 +431,7 @@ function renderCal(){const y=new Date(calM).getUTCFullYear(),m=new Date(calM).ge
   $('#cal').innerHTML=h;}
 
 /* ============ RENDEMENT ============ */
-function renderWater(){const b=base();const steps=[['Koers',T.priceGain],['Valuta',T.fxGain],['Gerealiseerd',T.real],['Dividend bruto',T.divG],['Bronbelasting',-T.divT],['Kosten',-T.fees]];
+function renderWater(){const b=base();const steps=[['Koers',T.priceGain],['Valuta',T.fxGain],['Gerealiseerd',T.real],['Dividend bruto',T.divG],['Bronbelasting',-T.divT],['Kosten',-T.fees],['Opties',T.opt]];
   let run=0;const baseA=[],pos_=[],neg=[];steps.forEach(([_,v])=>{if(v>=0){baseA.push(run);pos_.push(+v.toFixed(0));neg.push('-');run+=v;}else{run+=v;baseA.push(run);pos_.push('-');neg.push(+(-v).toFixed(0));}});
   const cats=[...steps.map(s=>s[0]),'Totaal'];baseA.push(0);pos_.push('-');neg.push('-');const tot=cats.map((_,i)=>i===cats.length-1?+T.total.toFixed(0):'-');
   const vals=[...steps.map(s=>s[1]),T.total];
@@ -405,10 +462,10 @@ function renderReport(){const rows=contribRows().sort((a,b)=>(b.open-a.open)||b.
    rows.map(r=>{const x=r.x;const f=v=>`<td class="n num ${v<0?'down':''}">${v?nf0.format(v):'0'}</td>`;return `<tr><td><b>${x.t}</b><span class="sub2">${r.open?x.ex+' · '+x.ccy:'verkocht'}</span></td><td class="n num">${r.open?nf0.format(x.q):0}</td><td class="n num">${px(x)}</td><td class="n num">${r.open?nf0.format(x.val):0}</td><td class="n num">${r.open?nf0.format(x.cost):0}</td>${f(r.pg)}${f(r.fg)}${f(r.real)}${f(r.div)}${f(-r.fees)}<td class="n num ${cls(r.tot)}"><b>${nf0.format(r.tot)}</b></td></tr>`;}).join('')+'</tbody>';
   reportCSV=[head.join(';'),...rows.map(r=>[r.x.t,r.open?r.x.q:0,nf2.format(r.x.p),r.open?r.x.val.toFixed(2):0,r.open?r.x.cost.toFixed(2):0,r.pg.toFixed(2),r.fg.toFixed(2),r.real.toFixed(2),r.div.toFixed(2),(-r.fees).toFixed(2),r.tot.toFixed(2)].join(';'))].join('\n');}
 let txSel='ALL';
-function renderTx(){const L={BUY:'Koop',SELL:'Verkoop',DIV:'Dividend'};const xs=TX.filter(t=>txSel==='ALL'||t.ty===txSel).slice().reverse();
-  $('#txCount').textContent=`${xs.length} transacties sinds 7 januari 2019. Koopkosten: € ${nf2.format(FEE)} per order plus ${nf2.format(FXFEE*100)}% valutakosten op dollars.`;
+function renderTx(){const L={BUY:'Koop',SELL:'Verkoop',DIV:'Dividend',OPT:'Optie'};const xs=TX.filter(t=>txSel==='ALL'||t.ty===txSel).slice().reverse();
+  $('#txCount').textContent=`${xs.length} transacties sinds 7 januari 2019. Koopkosten: € ${nf2.format(FEE)} per order plus ${nf2.format(FXFEE*100)}% valutakosten op vreemde valuta. Opties: € ${nf2.format(OPT_FEE)} per contract.`;
   $('#tblTx').innerHTML=`<thead><tr><th>Datum</th><th>Soort</th><th>Positie</th><th class="n">Aantal</th><th class="n">Prijs</th><th class="n">Bedrag (EUR)</th></tr></thead><tbody>`+
-   xs.map(t=>`<tr><td class="num">${fdate(t.d)}</td><td><span class="pill ${t.ty==='SELL'?'bad':t.ty==='BUY'?'neu':'good'}">${L[t.ty]}</span></td><td><b>${t.t}</b> <span style="color:var(--ink-3)">${BY[t.t].n}</span></td><td class="n num">${nf0.format(t.q)}</td><td class="n num">${(t.ccy==='USD'?'$ ':'€ ')+nf2.format(t.price)}</td><td class="n num ${cls(t.amt)}">${eurS(t.amt,2)}${t.tax?`<span class="sub2">na ${eur(t.tax,2)} belasting</span>`:''}</td></tr>`).join('')+'</tbody>';}
+   xs.map(t=>`<tr><td class="num">${fdate(t.d)}</td><td><span class="pill ${t.ty==='SELL'?'bad':t.ty==='BUY'?'neu':'good'}">${L[t.ty]}</span></td><td><b>${t.t}</b> <span style="color:var(--ink-3)">${t.ty==='OPT'?optName(t.o)+' · '+t.act:BY[t.t].n}</span></td><td class="n num">${nf0.format(t.q)}${t.ty==='OPT'?' ct':''}</td><td class="n num">${t.ty==='OPT'?'€ '+nf2.format(t.price):(CSYM[t.ccy]||'€ ')+nf2.format(t.price)}</td><td class="n num ${cls(t.amt)}">${eurS(t.amt,2)}${t.tax?`<span class="sub2">na ${eur(t.tax,2)} belasting</span>`:''}</td></tr>`).join('')+'</tbody>';}
 
 /* ============ NIEUWS (sample items) ============ */
 const NEWS=[
@@ -439,6 +496,9 @@ function renderEnts(){const E=[
  ['broker_account','Koppeling met broker (fase 2)',[['id','uuid'],['broker','enum'],['external_id','text'],['last_sync_at','timestamptz']]],
  ['instrument','Aandeel, ETF of fonds',[['id','uuid'],['isin','char(12)'],['ticker','text'],['name','text'],['exchange','text'],['currency','char(3)'],['sector / industry','text'],['country','char(2)']]],
  ['transaction','Bron van alle berekeningen',[['id','uuid'],['portfolio_id','→ portfolio'],['instrument_id','→ instrument'],['type','BUY | SELL | DIVIDEND | FEE | CASH'],['trade_date','date'],['quantity','numeric'],['price','numeric (lokaal)'],['fx_rate','numeric'],['fees / tax','numeric (EUR)']]],
+ ['option_contract','Optieserie (Euronext): onderliggende, call/put, strike, expiratie',[['id','uuid'],['underlying_id','→ instrument of index'],['type','CALL | PUT'],['strike','numeric'],['expiry','date'],['multiplier','10 (Mini AEX) | 100'],['style','Europees | Amerikaans'],['settlement','cash | levering']]],
+ ['option_trade','Opening, sluiting, expiratie of assignment',[['id','uuid'],['portfolio_id','→ portfolio'],['contract_id','→ option_contract'],['action','BTO | STO | BTC | STC | EXP | ASSIGN'],['trade_date','date'],['contracts','int'],['premium','numeric'],['fee','numeric'],['strategy','text?']]],
+ ['etf_exposure','Doorkijk van een ETF naar landen en sectoren',[['instrument_id','→ instrument'],['as_of','date'],['dimension','country | sector | currency'],['key','text'],['weight','numeric']]],
  ['price_daily','Slotkoersen per dag',[['instrument_id','→ instrument'],['date','date'],['close','numeric'],['volume','bigint']]],
  ['fx_daily','Valutakoersen per dag',[['pair','EURUSD …'],['date','date'],['rate','numeric']]],
  ['dividend_event','Aangekondigd of geschat dividend',[['instrument_id','→ instrument'],['ex_date','date'],['pay_date','date'],['amount','numeric (lokaal)'],['status','declared | estimated']]],
@@ -472,8 +532,8 @@ function renderTree(){const b=base();const chgOf=x=>tmSel==='day'?x.day:x.px[NW-
 function renderSignals(){const out=[];const add=(k,ic,t,s)=>out.push({k,ic,t,s});
   const soon=DIVS.filter(v=>!v.hist&&v.exd>=TODAY&&v.exd<=TODAY+14*DAY);soon.forEach(v=>add(1,'info',`${v.t} gaat ${fdate(v.exd)} ex-dividend`,`Verwacht ${eur(v.net,2)} netto, betaling rond ${fdate(v.pay)}`));
   DIVS.filter(v=>!v.hist&&v.pay>=TODAY&&v.pay<=TODAY+14*DAY).forEach(v=>add(2,'good',`${v.t} betaalt ${eur(v.net,2)} dividend`,`Rond ${fdate(v.pay)}`));
-  OPEN.filter(x=>x.w>.1).forEach(x=>add(3,'bad',`${x.t} is ${pct(x.w)} van je portefeuille`,'Boven 10% maakt één tegenvaller voelbaar'));
-  const secW={};OPEN.forEach(x=>secW[x.sec]=(secW[x.sec]||0)+x.w);Object.entries(secW).filter(([,w])=>w>.3).forEach(([s,w])=>add(3,'bad',`${s} weegt ${pct(w)}`,'Meer dan 30% in één sector'));
+  STK.filter(x=>x.w>.1).forEach(x=>add(3,'bad',`${x.t} is ${pct(x.w)} van je portefeuille`,'Boven 10% maakt één tegenvaller voelbaar'));
+  const secW={};STK.forEach(x=>secW[x.sec]=(secW[x.sec]||0)+x.w);Object.entries(secW).filter(([,w])=>w>.3).forEach(([s,w])=>add(3,'bad',`${s} weegt ${pct(w)}`,'Meer dan 30% in één sector'));
   OPEN.filter(x=>x.disc>.15).sort((a,b)=>b.disc-a.disc).slice(0,2).forEach(x=>add(4,'good',`${x.t} noteert ${pct(x.disc,0)} onder ${FV_L}`,`Koers ${px(x)}, ${FV_L} ${px(x,x.fv)}`));
   OPEN.filter(x=>x.disc<-.1).forEach(x=>add(4,'bad',`${x.t} staat ${pct(-x.disc,0)} boven ${FV_L}`,`Koers ${px(x)}, ${FV_L} ${px(x,x.fv)}`));
   OPEN.forEach(x=>{const hi=Math.max(...x.px.slice(NW-52));const dd=x.p/hi-1;if(dd<-.25)add(5,'bad',`${x.t} staat ${pct(-dd,0)} onder de top van dit jaar`,`Jaarhoog ${px(x,hi)}`);});
@@ -482,7 +542,7 @@ function renderSignals(){const out=[];const add=(k,ic,t,s)=>out.push({k,ic,t,s})
   $('#signals').innerHTML=out.slice(0,8).map(o=>`<div class="sig"><span class="ic ${o.ic}">${o.ic==='good'?'↑':o.ic==='bad'?'!':'i'}</span><div>${o.t}<small>${o.s}</small></div></div>`).join('')||'<p class="note">Geen bijzonderheden.</p>';}
 
 /* ============ SCORE-CHECKS ============ */
-function renderChecks(){const xs=[...OPEN].sort((a,b)=>b.s[axisSel]-a.s[axisSel]||b.w-a.w);const labels=OPEN[0].checks[axisSel].map(c=>c[0]);
+function renderChecks(){const xs=[...STK].sort((a,b)=>b.s[axisSel]-a.s[axisSel]||b.w-a.w);const labels=STK[0].checks[axisSel].map(c=>c[0]);
   $('#tblChecks').innerHTML=`<thead><tr><th>Positie</th>${labels.map((l,i)=>`<th title="${l}" style="white-space:normal;min-width:84px;max-width:130px;text-transform:none;letter-spacing:0;font-size:11.5px;line-height:1.3">${l}</th>`).join('')}<th class="n">Score</th></tr></thead><tbody>`+
    xs.map(x=>`<tr><td><b>${x.t}</b></td>${x.checks[axisSel].map(c=>`<td><span class="dot ${c[1]?'y':'n'}" title="${x.t}: ${c[0]}: ${c[1]?'ja':'nee'}" aria-label="${c[1]?'ja':'nee'}"></span></td>`).join('')}<td class="n num"><b>${x.s[axisSel]}</b>/6</td></tr>`).join('')+'</tbody>';}
 
@@ -580,6 +640,126 @@ function renderBench(){const b=base();
    visualMap:{show:false,min:-8,max:8,dimension:2,inRange:{color:[b.bad,css('--div-mid'),b.good]}},
    series:[{type:'heatmap',data:cells,itemStyle:{borderColor:b.sf,borderWidth:2,borderRadius:3},label:{show:true,fontSize:11,color:b.ink,formatter:p=>nf2.format(p.value[2]).replace(/(,\d)\d$/,'$1')}}]});}
 
+/* ============ OPTIES ============ */
+const fK=K=>K>=100?nf0.format(K):nf2.format(K);
+const fExp=t=>{const d=new Date(t);return MONTHS[d.getUTCMonth()]+" '"+String(d.getUTCFullYear()).slice(2);};
+function optName(o){return `${o.u==='AEX'?'AEX':o.u} ${o.type==='C'?'Call':'Put'} ${fK(o.K)} ${fExp(o.E)}`;}
+const sideLbl=o=>o.side<0?'<span class="pill bad">geschreven</span>':'<span class="pill good">gekocht</span>';
+let payU=null, stratSel='ALL';
+function renderOptions(){const b=base();const cy=new Date(TODAY).getUTCFullYear();
+  const premY=OPTTX.filter(t=>new Date(t.d).getUTCFullYear()===cy&&(t.act==='Schrijf')).reduce((a,t)=>a+t.amt,0);
+  const wins=CLOSED_OPT.filter(o=>o.pnl>0).length;
+  $('#optHero').innerHTML=`<div class="stat"><span class="l">Resultaat opties sinds 2021</span><span class="big num ${cls(OPTT.total)}">${eurS(OPTT.total)}</span></div>
+   <div class="stat"><span class="l">Lopend · ${OPEN_OPT.length} posities</span><span class="v num ${cls(OPTT.open)}">${eurS(OPTT.open)}</span></div>
+   <div class="stat"><span class="l">Ontvangen premie ${cy}</span><span class="v num">${eur(premY)}</span></div>
+   <div class="stat"><span class="l">Gewonnen trades</span><span class="v num">${pct(wins/CLOSED_OPT.length,0)} <small style="font-size:13px;color:var(--ink-3)">van ${CLOSED_OPT.length}</small></span></div>`;
+  const G=k=>OPEN_OPT.reduce((a,o)=>a+o[k],0);
+  const k=(l,v,s,c='')=>`<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small style="color:var(--ink-3)">${s}</small></div>`;
+  $('#optGreeks').innerHTML=[k('Marktwaarde opties',eurS(OPTT.val),'geschreven opties tellen als verplichting',cls(OPTT.val)),
+   k('Delta in euro',eurS(G('deltaE')),'koersgevoeligheid, alsof je zoveel aandelen hebt',cls(G('deltaE'))),
+   k('Theta per dag',eurS(G('theta'),2),'tijdswaarde die je per dag wint of verliest',cls(G('theta'))),
+   k('Vega per volapunt',eurS(G('vega'),2),'als de volatiliteit 1 punt stijgt',cls(G('vega'))),
+   k('Eerstvolgende expiratie',OPEN_OPT.length?fdate(Math.min(...OPEN_OPT.map(o=>o.E))):'geen',OPEN_OPT.length?Math.min(...OPEN_OPT.map(o=>o.dte))+' dagen':'')].join('');
+  const xs=[...OPEN_OPT].sort((a,b)=>a.E-b.E);
+  $('#tblOptOpen').innerHTML=`<thead><tr><th>Optie</th><th></th><th class="n">Aantal</th><th class="n">Onderl.</th><th>Afstand</th><th class="n">Open</th><th class="n">Nu</th><th class="n">Resultaat</th><th class="n">Delta</th><th class="n">Theta/dag</th><th class="n">Kans ITM</th><th class="n">Dagen</th></tr></thead><tbody>`+
+   xs.map(o=>{const dist=o.S/o.K-1;const itm=o.type==='C'?o.S>o.K:o.S<o.K;return `<tr><td><b>${optName(o)}</b><span class="sub2">${o.pl.naam}</span></td><td>${sideLbl(o)}</td><td class="n num">${o.side*o.n}</td>
+    <td class="n num">${fK(o.S)}</td><td><span class="pill ${itm?(o.side<0?'bad':'good'):'neu'}">${itm?'in the money':'out of the money'}</span> <span class="num" style="color:var(--ink-3);font-size:12px">${pctS(dist)}</span></td>
+    <td class="n num">${nf2.format(o.p0)}</td><td class="n num">${nf2.format(o.g.p)}</td><td class="n num ${cls(o.upnl)}">${eurS(o.upnl)}</td><td class="n num">${eurS(o.deltaE)}</td><td class="n num ${cls(o.theta)}">${eurS(o.theta,2)}</td>
+    <td class="n num"><span class="probbar"><i style="width:${o.g.itm*100}%"></i></span>${pct(o.g.itm,0)}</td><td class="n num">${o.dte}</td></tr>`;}).join('')+'</tbody>';
+  // uitbetalingsprofiel
+  const us=[...new Set(OPEN_OPT.map(o=>o.u))];if(!us.includes(payU))payU=us[0];
+  $('#payPick').innerHTML=us.map(u=>`<button aria-pressed="${u===payU}" data-v="${u}">${u}</button>`).join('');
+  if(payU){const legs=OPEN_OPT.filter(o=>o.u===payU);const S0=legs[0].S;const stock=BY[payU]&&BY[payU].q?BY[payU].q:0;
+    const lo=S0*.75,hi=S0*1.25,pts=[];for(let k2=0;k2<=120;k2++)pts.push(lo+(hi-lo)*k2/120);
+    const atExp=S=>legs.reduce((a,o)=>{const iv=o.type==='C'?Math.max(0,S-o.K):Math.max(0,o.K-S);return a+o.side*o.n*o.mult*(iv-o.g.p);},0)+stock*(S-S0);
+    const now=S=>legs.reduce((a,o)=>a+o.side*o.n*o.mult*(bs(S,o.K,Math.max(0,o.T-7/365),o.vol,o.type).p-o.g.p),0)+stock*(S-S0);
+    const ex=pts.map(S=>[+S.toFixed(2),Math.round(atExp(S))]),nw=pts.map(S=>[+S.toFixed(2),Math.round(now(S))]);
+    C('chPayoff').setOption({textStyle:b.text,grid:{left:8,right:16,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,data:['Op expiratie'+(stock?' (met je '+nf0.format(stock)+' aandelen)':''),'Over een week'],textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+     tooltip:{...b.tip,trigger:'axis',formatter:p=>`<b>${payU} op ${fK(p[0].value[0])}</b> (${pctS(p[0].value[0]/S0-1)})<br>`+p.filter(q=>q.seriesName!=='w'&&q.seriesName!=='v').map(q=>`${q.marker}${q.seriesName}: ${eurS(q.value[1])}`).join('<br>')},
+     xAxis:{type:'value',min:+lo.toFixed(2),max:+hi.toFixed(2),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,formatter:v=>fK(v)}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
+     series:[{name:'w',type:'line',showSymbol:false,data:ex.map(([x,y])=>[x,Math.max(0,y)]),lineStyle:{width:0},areaStyle:{color:hexA(b.good,.16)},tooltip:{show:false},silent:true},
+      {name:'v',type:'line',showSymbol:false,data:ex.map(([x,y])=>[x,Math.min(0,y)]),lineStyle:{width:0},areaStyle:{color:hexA(b.bad,.16)},tooltip:{show:false},silent:true},
+      {name:'Op expiratie'+(stock?' (met je '+nf0.format(stock)+' aandelen)':''),type:'line',showSymbol:false,data:ex,lineStyle:{color:b.acc,width:2.2},itemStyle:{color:b.acc},
+       markLine:{silent:true,symbol:'none',data:[{xAxis:+S0.toFixed(2),label:{formatter:'nu '+fK(S0),color:b.ink2,position:'end'},lineStyle:{color:b.ink2,type:'solid'}},...legs.map(o=>({xAxis:o.K,label:{formatter:(o.type==='C'?'C ':'P ')+fK(o.K),color:b.ink3,position:'insideEndTop',fontSize:10.5},lineStyle:{color:b.ink3,type:'dotted'}})),{yAxis:0,label:{show:false},lineStyle:{color:b.ink3}}]}},
+      {name:'Over een week',type:'line',showSymbol:false,data:nw,lineStyle:{color:b.mkt,width:1.6,type:'dashed'},itemStyle:{color:b.mkt}}]});
+    $('#payNote').textContent=`Resultaat ten opzichte van vandaag als ${legs[0].un} beweegt.${stock?' Je aandelen tellen mee, zodat je ziet hoe de geschreven calls je opwaartse winst begrenzen.':''}`;}
+  // expiratieladder
+  const months=[...new Set(xs.map(o=>fExp(o.E)))];const uu=[...new Set(xs.map(o=>o.u))];
+  C('chExpiry').setOption({textStyle:b.text,grid:{left:8,right:8,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>v?eur(v):'-'},
+   xAxis:{type:'category',data:months,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
+   series:uu.map((u,ui)=>({name:u,type:'bar',stack:'e',barMaxWidth:46,data:months.map(m=>Math.round(xs.filter(o=>o.u===u&&fExp(o.E)===m).reduce((a,o)=>a+o.n*o.mult*o.K,0))),itemStyle:{color:b.cat[ui%8],borderRadius:2}}))});
+  // resultaat per maand
+  const mm={};CLOSED_OPT.forEach(o=>{const d=new Date(o.close.t);const key=d.getUTCFullYear()*12+d.getUTCMonth();mm[key]=(mm[key]||0)+o.pnl;});
+  const k0=Math.min(...Object.keys(mm).map(Number)),k1=new Date(TODAY).getUTCFullYear()*12+new Date(TODAY).getUTCMonth();const keys=[];for(let q=k0;q<=k1;q++)keys.push(q);
+  let cum=0;const cumA=keys.map(q=>Math.round(cum+=mm[q]||0));
+  C('chOptMonth').setOption({textStyle:b.text,grid:{left:8,right:8,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>eurS(v)},
+   xAxis:{type:'category',data:keys.map(q=>MONTHS[q%12]+" '"+String(Math.floor(q/12)).slice(2)),...b.ax,splitLine:{show:false}},
+   yAxis:[{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},{type:'value',...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}}],
+   series:[{name:'Per maand',type:'bar',barMaxWidth:12,data:keys.map(q=>({value:Math.round(mm[q]||0),itemStyle:{color:(mm[q]||0)>=0?b.good:b.bad,borderRadius:2}}))},
+    {name:'Cumulatief',type:'line',yAxisIndex:1,showSymbol:false,data:cumA,lineStyle:{color:b.acc,width:2},itemStyle:{color:b.acc},areaStyle:{color:hexA(b.acc,.1)}}]});
+  // strategieen
+  const st=OPT_PLAN.map(pl=>{const cs=CLOSED_OPT.filter(o=>o.pl===pl),op=OPEN_OPT.filter(o=>o.pl===pl);const pn=cs.map(o=>o.pnl);
+    return {pl,n:cs.length,open:op.length,win:cs.length?cs.filter(o=>o.pnl>0).length/cs.length:0,tot:pn.reduce((a,v)=>a+v,0)+op.reduce((a,o)=>a+o.upnl,0),best:Math.max(0,...pn),worst:Math.min(0,...pn)};}).sort((a,b)=>b.tot-a.tot);
+  $('#tblStrat').innerHTML=`<thead><tr><th>Strategie</th><th class="n">Trades</th><th>Gewonnen</th><th class="n">Beste / slechtste</th><th class="n">Totaal</th></tr></thead><tbody>`+
+   st.map(r=>`<tr><td><b>${r.pl.naam}</b><span class="sub2">${r.pl.side<0?'schrijven':'kopen'} · ${r.pl.type==='C'?'calls':'puts'} · ${r.pl.n} contract${r.pl.n>1?'en':''}${r.open?' · '+r.open+' lopend':''}</span></td><td class="n num">${r.n}</td>
+    <td class="num"><span class="probbar"><i style="width:${r.win*100}%"></i></span>${pct(r.win,0)}</td><td class="n num"><span class="up">${eurS(r.best)}</span><span class="sub2 down">${eurS(r.worst)}</span></td><td class="n num ${cls(r.tot)}"><b>${eurS(r.tot)}</b></td></tr>`).join('')+'</tbody>';
+  // verdeling
+  const pn=CLOSED_OPT.map(o=>o.pnl);const bw=500;const bmin=Math.floor(Math.min(...pn)/bw)*bw,bmax=Math.ceil(Math.max(...pn)/bw)*bw;const bins=[];for(let v=bmin;v<bmax;v+=bw)bins.push(v);
+  C('chOptHist').setOption({textStyle:b.text,grid:{left:8,right:8,top:12,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},formatter:p=>`${eurS(bins[p[0].dataIndex])} tot ${eurS(bins[p[0].dataIndex]+bw)}: <b>${p[0].value} trades</b>`},
+   xAxis:{type:'category',data:bins.map(v=>v===0?'0':(v>0?'+':'−')+nf2.format(Math.abs(v)/1000).replace(/,?0+$/,'')+'k'),...b.ax,splitLine:{show:false}},yAxis:{type:'value',minInterval:1,...b.ax},
+   series:[{type:'bar',barCategoryGap:'12%',data:bins.map(v=>({value:pn.filter(x=>x>=v&&x<v+bw).length,itemStyle:{color:v>=0?b.good:b.bad,borderRadius:[3,3,0,0]}}))}]});
+  $('#stratPick').innerHTML=[['ALL','Alles'],...OPT_PLAN.map(p=>[p.id,p.naam])].map(([v,l])=>`<button aria-pressed="${v===stratSel}" data-v="${v}">${l}</button>`).join('');
+  renderOptClosed();}
+function renderOptClosed(){const xs=CLOSED_OPT.filter(o=>stratSel==='ALL'||o.pl.id===stratSel).sort((a,b)=>b.close.t-a.close.t);
+  $('#tblOptClosed').innerHTML=`<thead><tr><th>Optie</th><th></th><th class="n">Aantal</th><th>Geopend</th><th>Gesloten</th><th>Hoe</th><th class="n">Open</th><th class="n">Sluit</th><th class="n">Resultaat</th></tr></thead><tbody>`+
+   xs.map(o=>`<tr><td><b>${optName(o)}</b></td><td>${sideLbl(o)}</td><td class="n num">${o.side*o.n}</td><td class="num">${fdate(o.t0)}</td><td class="num">${fdate(o.close.t)}</td><td style="color:var(--ink-2)">${o.close.how}</td>
+    <td class="n num">${nf2.format(o.p0)}</td><td class="n num">${nf2.format(o.close.p)}</td><td class="n num ${cls(o.pnl)}">${eurS(o.pnl)}</td></tr>`).join('')+'</tbody>';
+  $('#optClosedCount').textContent=`${xs.length} gesloten posities. Kosten € ${nf2.format(OPT_FEE)} per contract per transactie, niets bij waardeloos verlopen.`;}
+
+/* ============ SPREIDING ============ */
+// doorkijk: losse aandelen tellen bij hun land, ETF's worden over hun landen verdeeld
+function lookThrough(){const c={},via={};const add=(land,v,src)=>{c[land]=(c[land]||0)+v;via[land]=via[land]||{d:0,e:0};via[land][src]+=v;};
+  OPEN.forEach(x=>{if(x.etf){const L=LOOK[x.lt];const s=Object.values(L).reduce((a,b)=>a+b,0);Object.entries(L).forEach(([land,w])=>add(land,x.val*w/s,'e'));}else add(x.cty,x.val,'d');});
+  return {c,via};}
+let ccyMode='lt';
+function renderSpread(){const b=base();const {c,via}=lookThrough();const tot=Object.values(c).reduce((a,b)=>a+b,0);
+  const regs={};Object.entries(c).forEach(([land,v])=>{const r=REGION[land]||'Overig ontwikkeld';(regs[r]=regs[r]||[]).push([land,v]);});
+  const RC={'Europa':0,'Noord-Amerika':1,'Azië-Pacific':2,'Opkomende markten':3,'Overig ontwikkeld':4};
+  const sun=Object.entries(regs).sort((a,b)=>b[1].reduce((s,x)=>s+x[1],0)-a[1].reduce((s,x)=>s+x[1],0)).map(([r,ls])=>({name:r,itemStyle:{color:b.cat[RC[r]??5]},
+    children:ls.sort((a,b)=>b[1]-a[1]).map(([land,v],k)=>({name:land,value:+(v/tot*100).toFixed(2),itemStyle:{color:hexA(b.cat[RC[r]??5],Math.max(.35,.95-k*.09))}}))}));
+  C('chSun').setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${p.name}</b>: ${pct(p.value/100)}`+(via[p.name]?`<br>Direct ${eur(via[p.name].d)} · via ETF's ${eur(via[p.name].e)}`:'')},
+   series:[{type:'sunburst',data:sun,radius:['18%','94%'],sort:null,nodeClick:false,itemStyle:{borderColor:b.sf,borderWidth:2,borderRadius:4},
+    levels:[{},{r0:'18%',r:'52%',label:{color:'#fff',fontWeight:600,fontSize:12,rotate:0,minAngle:14,formatter:p=>p.name+'\n'+pct(p.value/100,0)}},{r0:'53%',r:'94%',label:{color:b.ink,fontSize:11,minAngle:7,align:'right',formatter:p=>p.name}}]}],
+   graphic:[{type:'text',left:'center',top:'middle',style:{text:Object.keys(c).length+'\nlanden',fill:b.ink2,font:'600 13px Inter',align:'center'}}]});
+  // beleggingstype
+  const sv=STK.reduce((a,x)=>a+x.val,0),ev=ETFS.reduce((a,x)=>a+x.val,0);const lo=OPEN_OPT.filter(o=>o.val>0).reduce((a,o)=>a+o.val,0),so=-OPEN_OPT.filter(o=>o.val<0).reduce((a,o)=>a+o.val,0);
+  const at=[{name:'Aandelen',value:sv,ci:0},{name:"ETF's",value:ev,ci:1},{name:'Opties (gekocht)',value:lo,ci:2}];const atT=at.reduce((a,d)=>a+d.value,0);
+  donut('chAsset',at.map(d=>({...d,value:+(d.value/atT*100).toFixed(2)})));
+  $('#assetNote').textContent=`Geschreven opties zijn een verplichting van ${eur(so)} en staan daarom niet in de taart. Netto optiewaarde: ${eurS(OPTT.val)}.`;
+  // valuta
+  const cc={};if(ccyMode==='lt'){Object.entries(c).forEach(([land,v])=>{const k=CCYOF[land]||(REGION[land]==='Europa'?'EUR':REGION[land]==='Opkomende markten'?'Overig opkomend':'EUR');cc[k]=(cc[k]||0)+v;});}
+  else OPEN.forEach(x=>cc[x.ccy]=(cc[x.ccy]||0)+x.val);
+  const CN={EUR:'Euro',USD:'Dollar',CHF:'Zwitserse frank',DKK:'Deense kroon',JPY:'Yen',GBP:'Pond',CAD:'Canadese dollar',AUD:'Australische dollar',CNY:'Yuan',INR:'Roepie',TWD:'Taiwanese dollar',KRW:'Won','Overig opkomend':'Overig opkomend'};
+  const ccT=Object.values(cc).reduce((a,b)=>a+b,0);const ce=Object.entries(cc).sort((a,b)=>b[1]-a[1]);const top=ce.slice(0,6),rest=ce.slice(6).reduce((a,x)=>a+x[1],0);
+  donut('chCcy2',[...top.map(([k2,v],i)=>({name:CN[k2]||k2,value:+(v/ccT*100).toFixed(2),ci:i})),...(rest?[{name:'Overig',value:+(rest/ccT*100).toFixed(2),ci:7}]:[])]);
+  // thuismarktvoorkeur: jij vs MSCI World
+  const W=LOOK.msciw;const lands=[...new Set([...Object.keys(W),...Object.keys(c)])].filter(l=>!l.startsWith('Overig')).map(l=>[l,(c[l]||0)/tot*100,W[l]||0]).sort((a,b2)=>(b2[1]-b2[2])-(a[1]-a[2]));
+  const sel=[...lands.slice(0,6),...lands.slice(-4)].filter((v,i,a)=>a.indexOf(v)===i).sort((a,b2)=>(a[1]-a[2])-(b2[1]-b2[2]));
+  C('chHome').setOption({textStyle:b.text,grid:{left:8,right:48,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>{const r=sel[p.dataIndex];return `<b>${r[0]}</b><br>Jij ${nf2.format(r[1])}% · MSCI World ${nf2.format(r[2])}%`;}},
+   xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>(v>0?'+':'')+v}},yAxis:{type:'category',data:sel.map(r=>r[0]),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2}},
+   series:[{type:'bar',barWidth:12,data:sel.map(r=>{const d=r[1]-r[2];return {value:+d.toFixed(1),itemStyle:{color:d>=0?b.cat[1]:b.cat[0],borderRadius:d>=0?[0,4,4,0]:[4,0,0,4]}};}),label:{show:true,position:'right',color:b.ink2,fontSize:11,formatter:p=>(p.value>0?'+':'')+nf2.format(p.value).replace(/,?0+$/,'')}}]});
+  const nl=(c['Nederland']||0)/tot;$('#homeNote').textContent=`Nederland is ${pct(nl)} van je vermogen, tegen ${nf2.format(W['Nederland'])}% in de MSCI World. Een thuismarktvoorkeur is normaal, maar maakt je gevoeliger voor de Nederlandse economie.`;
+  // tabel
+  const rows=Object.entries(c).sort((a,b2)=>b2[1]-a[1]);
+  $('#tblCountry').innerHTML=`<thead><tr><th>Land</th><th>Regio</th><th class="n">Direct</th><th class="n">Via ETF's</th><th>Gewicht</th></tr></thead><tbody>`+
+   rows.map(([land,v])=>`<tr><td><b>${land}</b></td><td style="color:var(--ink-2)">${REGION[land]||'Overig'}</td><td class="n num">${via[land].d?eur(via[land].d):'–'}</td><td class="n num">${via[land].e?eur(via[land].e):'–'}</td><td class="num" style="white-space:nowrap"><span class="probbar"><i style="width:${v/rows[0][1]*100}%"></i></span>${pct(v/tot)}</td></tr>`).join('')+'</tbody>';
+  $('#spreadHero').innerHTML=`<div class="stat"><span class="l">Landen (met doorkijk)</span><span class="big num">${Object.keys(c).length}</span></div>
+   <div class="stat"><span class="l">Buiten Europa</span><span class="v num">${pct(Object.entries(c).filter(([l])=>REGION[l]!=='Europa').reduce((a,x)=>a+x[1],0)/tot)}</span></div>
+   <div class="stat"><span class="l">Niet in euro</span><span class="v num">${pct(1-(cc.EUR||0)/ccT)}</span></div>
+   <div class="stat"><span class="l">ETF's</span><span class="v num">${pct(ev/(sv+ev))}</span></div>`;}
+
 /* ============ drawer ============ */
 function openDrawer(t){const x=BY[t];if(!x||!x.q)return;const dr=$('#drawer');const nextD=DIVS.find(v=>v.t===t&&!v.hist);
   dr.innerHTML=`<button class="x" id="dx" aria-label="Sluiten">×</button>
@@ -607,6 +787,7 @@ const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTre
  analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
  waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
  belasting:()=>{renderTaxHero();renderTax();},
+ opties:renderOptions, spreiding:renderSpread,
  rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
 function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
@@ -617,7 +798,9 @@ function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.clo
 segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTaxHero();renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
 $('#bmPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){bmSel=bt.dataset.v;renderBench();}});
 segBind('#ovMode',d=>{ovMode=d.v;renderValue();});segBind('#ovRange',d=>{ovRange=+d.v;renderValue();});
-segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#txPick',d=>{txSel=d.v;renderTx();});
+segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#ccyMode',d=>{ccyMode=d.v;renderSpread();});
+$('#payPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){payU=bt.dataset.v;renderOptions();}});
+$('#stratPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){stratSel=bt.dataset.v;$$('#stratPick button').forEach(x=>x.setAttribute('aria-pressed',x===bt));renderOptClosed();}});segBind('#txPick',d=>{txSel=d.v;renderTx();});
 $('#axisPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){axisSel=+bt.dataset.k;renderLift();renderChecks();}});
 $('#stripPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){stripSel=+bt.dataset.i;renderStrip();}});
 $('#newsFilters').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){newsF=bt.dataset.c;renderNews();}});

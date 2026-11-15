@@ -40,3 +40,13 @@ erDiagram
 - Correlatiematrix
 - Dividendprognose 12 maanden (huidige posities × verwacht dividend, na 15% bronbelasting)
 - Gewogen kompasscore
+
+## Opties en ETF's (toegevoegd)
+
+| Tabel | Doel | Belangrijkste velden |
+|---|---|---|
+| option_contract | Euronext-optieserie | underlying_id, type (CALL/PUT), strike, expiry, multiplier (10 voor Mini AEX, 100 voor aandelen), settlement |
+| option_trade | Elke optietransactie | portfolio_id, contract_id, action (BTO, STO, BTC, STC, EXP, ASSIGN), contracts, premium, fee, strategy |
+| etf_exposure | Doorkijk van ETF's | instrument_id, as_of, dimension (country, sector, currency), key, weight |
+
+In het prototype worden optiepremies en Greeks met Black-Scholes berekend op de echte koers van de onderliggende waarde. Met Infront kunnen dit echte Euronext-optiekoersen worden.

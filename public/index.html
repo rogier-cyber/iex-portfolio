@@ -30,6 +30,8 @@
       <a href="#waardering">Waardering</a>
       <a href="#dividend">Dividend</a>
       <a href="#belasting">Box 3</a>
+      <a href="#opties">Opties</a>
+      <a href="#spreiding">Spreiding</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
       <a href="#nieuws">Nieuws</a>
@@ -185,6 +187,76 @@
   </div>
 </section>
 
+<!-- OPTIES -->
+<section class="view" id="v-opties" hidden>
+  <div class="panel"><header><div class="t hero" id="optHero"></div></header></div>
+  <div class="kpis" id="optGreeks"></div>
+  <div class="panel">
+    <header><div class="t"><h2>Lopende opties</h2><p>Geschreven en gekochte Euronext-opties. Mini AEX-opties hebben vermenigvuldiger 10, aandelenopties 100.</p></div></header>
+    <div class="tw"><table id="tblOptOpen"></table></div>
+    <p class="note">Optiepremies en Greeks zijn theoretisch (Black-Scholes) berekend op de echte koers van de onderliggende waarde, met historische volatiliteit als benadering. Met Infront komen hier straks de echte Euronext-optiekoersen.</p>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Uitbetalingsprofiel</h2><p id="payNote"></p></div><div class="seg" id="payPick"></div></header>
+      <div class="chart tall" id="chPayoff"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Expiratieladder</h2><p>Onderliggende waarde (aantal × vermenigvuldiger × uitoefenprijs) per expiratiemaand.</p></div></header>
+      <div class="chart tall" id="chExpiry"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Optieresultaat per maand</h2><p>Gerealiseerd resultaat van gesloten posities, na kosten, en het cumulatieve totaal.</p></div></header>
+    <div class="chart" id="chOptMonth"></div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Strategieën</h2><p>Hoe elke aanpak het deed, inclusief lopende posities.</p></div></header>
+      <div class="tw"><table id="tblStrat"></table></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Verdeling van uitkomsten</h2><p>Aantal gesloten trades per resultaatklasse van € 500. Veel kleine winsten en een paar grote verliezen is typisch voor schrijven.</p></div></header>
+      <div class="chart" id="chOptHist"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Gesloten optietrades</h2><p id="optClosedCount"></p></div></header>
+    <div class="seg segwrap" id="stratPick" style="margin-bottom:12px"></div>
+    <div class="tw" style="max-height:520px;overflow:auto"><table id="tblOptClosed"></table></div>
+  </div>
+</section>
+
+<!-- SPREIDING -->
+<section class="view" id="v-spreiding" hidden>
+  <div class="panel"><header><div class="t hero" id="spreadHero"></div></header></div>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Waar zit je geld echt</h2><p>Per regio en land, met doorkijk: een ETF telt mee naar de landen waarin hij belegt. Losse aandelen tellen bij het land van vestiging.</p></div></header>
+      <div class="chart" id="chSun" style="height:480px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Beleggingstype</h2><p>Aandelen, ETF's en gekochte opties.</p></div></header>
+      <div class="chart short" id="chAsset"></div>
+      <p class="note" id="assetNote"></p>
+      <header style="margin-top:18px"><div class="t"><h2>Valuta</h2><p>Het valutarisico achter je beleggingen.</p></div></header>
+      <div class="seg" id="ccyMode" style="margin-bottom:6px"><button aria-pressed="true" data-v="lt">Onderliggend</button><button aria-pressed="false" data-v="ccy">Noteringsvaluta</button></div>
+      <div class="chart short" id="chCcy2"></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Jij tegenover de wereld</h2><p>Over- en onderweging per land ten opzichte van de MSCI World, in procentpunten.</p></div></header>
+      <div class="chart" id="chHome" style="height:360px"></div>
+      <p class="note" id="homeNote"></p>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Alle landen</h2><p>Direct via aandelen of indirect via ETF's.</p></div></header>
+      <div class="tw" style="max-height:420px;overflow:auto"><table id="tblCountry"></table></div>
+    </div>
+  </div>
+</section>
+
 <!-- RENDEMENT -->
 <section class="view" id="v-rendement" hidden>
   <div class="grid g-3-1">
@@ -206,7 +278,7 @@
     <div class="tw"><table id="tblReport"></table></div>
   </div>
   <div class="panel">
-    <header><div class="t"><h2>Transacties</h2><p id="txCount"></p></div><div class="seg" id="txPick"><button aria-pressed="true" data-v="ALL">Alles</button><button aria-pressed="false" data-v="BUY">Koop</button><button aria-pressed="false" data-v="SELL">Verkoop</button><button aria-pressed="false" data-v="DIV">Dividend</button></div></header>
+    <header><div class="t"><h2>Transacties</h2><p id="txCount"></p></div><div class="seg" id="txPick"><button aria-pressed="true" data-v="ALL">Alles</button><button aria-pressed="false" data-v="BUY">Koop</button><button aria-pressed="false" data-v="SELL">Verkoop</button><button aria-pressed="false" data-v="DIV">Dividend</button><button aria-pressed="false" data-v="OPT">Opties</button></div></header>
     <div class="tw" style="max-height:520px;overflow-y:auto"><table id="tblTx"></table></div>
   </div>
 </section>

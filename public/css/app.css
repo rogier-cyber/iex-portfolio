@@ -240,3 +240,9 @@ tr.click:hover td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
 .legend{color:var(--ink-3)}
 footer.site{color:var(--ink-3);font-size:12px;padding-block:8px 40px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
 footer.site b{color:var(--ink-2);font-weight:600}
+
+/* opties en ETF's */
+.etfmark{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;font:700 9.5px/1 var(--f-display);letter-spacing:.06em;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.probbar{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--surface-2);margin-right:8px;vertical-align:middle;overflow:hidden}
+.probbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.seg.segwrap{display:flex;flex-direction:row;flex-wrap:wrap;width:fit-content;max-width:100%}
