@@ -881,6 +881,245 @@ function renderSpread(){const b=base();const {c,via}=lookThrough();const tot=Obj
    <div class="stat"><span class="l">Niet in euro</span><span class="v num">${pct(1-(cc.EUR||0)/ccT)}</span></div>
    <div class="stat"><span class="l">ETF's</span><span class="v num">${pct(ev/(sv+ev))}</span></div>`;}
 
+/* ============ BELEGGERSGEDRAG: analyse van je eigen beslissingen ============ */
+// Alle maatstaven komen uit je eigen transacties en koersen. Onderzoek dient als ijkpunt, niet als oordeel.
+const BM=()=>BENCH.MSCIW.s;
+const fwd=(arr,i,w)=>i+w<NW?arr[i+w]/arr[i]-1:null;
+const RESEARCH={
+  odean98:{t:'Odean (1998), Journal of Finance',k:'Beleggers verkopen winnaars 1,5 keer zo graag als verliezers (PGR 14,8% tegen PLR 9,8%), terwijl de verkochte winnaars het daarna beter deden dan de vastgehouden verliezers.'},
+  odean99:{t:'Odean (1999), American Economic Review',k:'Aandelen die particulieren kochten deden het het jaar erna 3,3 procentpunt slechter dan de aandelen die ze ervoor verkochten.'},
+  barber00:{t:'Barber & Odean (2000), Journal of Finance',k:'De 20% huishoudens die het meest handelden haalden 11,4% per jaar, tegen 18,5% voor de markt. Vooral door kosten.'},
+  barber08:{t:'Barber & Odean (2008), Review of Financial Studies',k:'Particulieren kopen vooral aandelen die in het nieuws zijn of hard zijn gestegen: aandacht drijft aankopen.'},
+  mstar25:{t:'Morningstar, Mind the Gap (jaarlijks onderzoek)',k:'De gemiddelde fondsbelegger haalt structureel ruim 1 procentpunt per jaar minder dan de fondsen waarin hij belegt, door slecht getimede stortingen en opnames.'},
+  frazzini06:{t:'Frazzini (2006), Journal of Finance',k:'Het dispositie-effect vertraagt hoe nieuws in koersen komt: wie verliezers vasthoudt, betaalt daar een prijs voor.'},
+  french91:{t:'French & Poterba (1991), American Economic Review',k:'Beleggers houden het overgrote deel in hun eigen land aan, veel meer dan de wereldwijde marktweging rechtvaardigt.'},
+  kumar09:{t:'Kumar (2009), Journal of Finance',k:'Particulieren hebben een voorkeur voor "loterij-aandelen" (goedkoop, zeer beweeglijk) en doen het daarmee structureel slechter.'},
+  bryz23:{t:'Bryzgalova, Pavlova & Sikorskaya (2023), Journal of Finance',k:'Particuliere optiehandelaren verliezen gemiddeld geld, vooral op korte looptijden en door hoge spreads.'},
+  esb:{t:'Cox, Kamolsareeratana & Kouwenberg (2018), Netspar / ESB',k:'Een kleine groep Nederlandse beleggers vertoont dwangmatig handelsgedrag: zij daytraden vijf keer zo vaak en hebben vaker hefboomproducten.'},
+  hoffmann14:{t:'Hoffmann & Shefrin (2014), Journal of Banking & Finance',k:'Nederlandse brokerklanten die opties handelen en technische analyse gebruiken, behalen duidelijk lagere rendementen.'},
+  afm15:{t:'AFM (2015), Inzichten zelfstandige beleggers',k:'Overmoed met te veel handelen, en te weinig spreiding (vaak door thuismarktvoorkeur), zijn de twee belangrijkste oorzaken van zwakke rendementen bij Nederlandse zelfbeleggers.'},
+  kahneman:{t:'Kahneman, Thinking, Fast and Slow (2011)',k:'Een beslisdagboek beschermt tegen achterafwijsheid: je ziet wat je toen echt dacht, niet wat je je nu herinnert.'},
+  bessem18:{t:'Bessembinder (2018), Journal of Financial Economics',k:'De meeste losse aandelen doen het over hun hele levensduur slechter dan staatsleningen; een handvol toppers maakt het hele marktrendement.'},
+};
+// --- transacties opnieuw afspelen voor kostprijs per moment ---
+const TRADES=TX.filter(t=>t.ty==='BUY'||t.ty==='SELL').map(t=>({...t,i:widx(t.d),x:BY[t.t]}));
+const BEH=(()=>{const st={};INS.forEach(x=>st[x.t]={q:0,cL:0});const out={buys:[],sells:[],disp:{rg:0,rl:0,pg:0,pl:0,days:0},closed:[]};
+  const lastBuy={};
+  // per verkoopweek: dispositie-telling (Odean) over alle posities die je toen had
+  const sellWeeks=new Set(TRADES.filter(t=>t.ty==='SELL').map(t=>t.i));
+  TRADES.forEach(t=>{const S=st[t.t];const x=t.x;const i=t.i;
+    if(t.ty==='BUY'){
+      const lo=Math.min(...x.px.slice(Math.max(0,i-52),i+1)),hi=Math.max(...x.px.slice(Math.max(0,i-52),i+1));const rng52=hi>lo?(t.price-lo)/(hi-lo):.5;
+      const run13=i>=13?x.px[i]/x.px[i-13]-1:null;const f26=fwd(x.px,i,26),f52=fwd(x.px,i,52);const b52=fwd(BM(),i,52);
+      out.buys.push({t:t.t,d:t.d,i,amt:-t.amt,price:t.price,rng52,run13,f26,f52,ex52:f52!=null&&b52!=null?(1+f52)/(1+b52)-1:null,etf:!!x.etf});
+      S.q+=t.q;S.cL+=t.q*t.price;lastBuy[t.t]=lastBuy[t.t]??t.d;}
+    else{const avg=S.cL/S.q;const gain=t.price/avg-1;
+      if(sellWeeks.has(i)&&!out._seen?.has(i)){out._seen=out._seen||new Set();out._seen.add(i);out.disp.days++;
+        const soldNow=new Set(TRADES.filter(u=>u.ty==='SELL'&&u.i===i).map(u=>u.t));
+        Object.entries(st).forEach(([k,P])=>{if(P.q<=0)return;const y=BY[k];const g=y.px[i]>P.cL/P.q;if(soldNow.has(k)){g?out.disp.rg++:out.disp.rl++;}else{g?out.disp.pg++:out.disp.pl++;}});}
+      const f26=fwd(x.px,i,26),f52=fwd(x.px,i,52);const lo=Math.min(...x.px.slice(Math.max(0,i-52),i+1)),hi=Math.max(...x.px.slice(Math.max(0,i-52),i+1));
+      const path=[];for(let k=0;k<=52&&i+k<NW;k++)path.push(x.px[i+k]/x.px[i]-1);
+      const regret=f52!=null?t.q*(x.px[i+52]-t.price)*fxAt(x.ccy,Math.min(NW-1,i+52)):t.q*(x.p-t.price)*fxAt(x.ccy,NW-1);
+      out.sells.push({t:t.t,d:t.d,i,q:t.q,price:t.price,gain,f26,f52,path,regret,rng52:hi>lo?(t.price-lo)/(hi-lo):.5,held:(t.d-(lastBuy[t.t]||t.d))/DAY});
+      S.cL-=avg*t.q;S.q-=t.q;if(S.q<=0){out.closed.push({t:t.t,ret:gain,days:(t.d-(lastBuy[t.t]||t.d))/DAY});S.cL=0;lastBuy[t.t]=null;}}});
+  const D_=out.disp;D_.pgr=D_.rg+D_.pg?D_.rg/(D_.rg+D_.pg):0;D_.plr=D_.rl+D_.pl?D_.rl/(D_.rl+D_.pl):0;D_.ratio=(D_.pgr+.03)/(D_.plr+.03);
+  // open posities: hoe lang en met welk resultaat (winnaars vs verliezers vasthouden)
+  out.open=OPEN.filter(x=>!x.etf).map(x=>({t:x.t,ret:x.p/x.avgL-1,days:(TODAY-(TX.find(t=>t.t===x.t&&t.ty==='BUY')||{d:TODAY}).d)/DAY,w:x.w}));
+  return out;})();
+// rendementskloof: geldgewogen (IRR) tegen tijdgewogen (TWR)
+const YRS=(TODAY-START)/(365.25*DAY);const TWRA=Math.pow(1+T.twr,1/YRS)-1;const GAP=IRR-TWRA;
+// kosten en omloopsnelheid per jaar
+const COST={};TX.forEach(t=>{const y=new Date(t.d).getUTCFullYear();COST[y]=COST[y]||{fee:0,turn:0,n:0,opt:0};COST[y].fee+=t.fee||0;if(t.ty==='BUY'||t.ty==='SELL'){COST[y].turn+=Math.abs(t.amt);COST[y].n++;}if(t.ty==='OPT')COST[y].opt++;});
+Object.entries(COST).forEach(([y,c])=>{const a=widx(Date.UTC(+y,0,1)),z=+y===new Date(TODAY).getUTCFullYear()?NW-1:widx(Date.UTC(+y+1,0,1));const av=mean(SER.v.slice(a,z+1).filter(v=>v>0))||1;c.avg=av;c.turnPct=c.turn/2/av;c.feePct=c.fee/av;});
+const FEES_ALL=TX.reduce((a,t)=>a+(t.fee||0),0);
+// spreiding
+const HHI=OPEN.reduce((a,x)=>a+x.w*x.w,0);const EFFN=1/HHI;
+const NLW=OPEN.filter(x=>x.cty==='Nederland').reduce((a,x)=>a+x.w,0);
+// wat-als: nooit verkocht, alles in MSCI World, vast bedrag per maand in MSCI World
+const WHATIF=(()=>{const keep=new Array(NW).fill(0),q={};INS.forEach(x=>q[x.t]=0);let ti=0;const buys=TRADES.filter(t=>t.ty==='BUY');
+  for(let i=0;i<NW;i++){while(ti<buys.length&&buys[ti].i<=i){q[buys[ti].t]+=buys[ti].q;ti++;}let v=0;INS.forEach(x=>{if(q[x.t])v+=q[x.t]*x.px[i]*fxAt(x.ccy,i);});keep[i]=v;}
+  // nooit verkocht: geen verkoopopbrengst; eerlijk vergelijken door verkoopopbrengst bij de werkelijke lijn op te tellen
+  const sold=new Array(NW).fill(0);let cum=0;let si=0;const sells=TX.filter(t=>t.ty==='SELL').sort((a,b)=>a.d-b.d);for(let i=0;i<NW;i++){while(si<sells.length&&widx(sells[si].d)<=i){cum+=sells[si].amt;si++;}sold[i]=cum;}
+  const B=BM();let u=0;const world=[];for(let i=0;i<NW;i++){u+=Math.max(0,SER.cf[i])/B[i];world.push(u*B[i]);}
+  const total=SER.cf.reduce((a,v)=>a+Math.max(0,v),0);const months=Math.round(NW/4.345);const per=total/months;let u2=0;const dca=[];for(let i=0;i<NW;i++){if(i%4===0||i===0)u2+=per*(4/4.345)/B[i];dca.push(u2*B[i]);}
+  const actualPlus=SER.v.map((v,i)=>v+sold[i]);
+  return {keep,world,dca,actualPlus,total};})();
+// --- scores 0-100 per gedragskenmerk ---
+const cl=(v,a,b)=>Math.max(0,Math.min(100,Math.round((v-a)/(b-a)*100)));
+const avgRng=mean(BEH.buys.filter(b=>!b.etf).map(b=>b.rng52));const chase=BEH.buys.filter(b=>!b.etf&&b.run13>.2).length/Math.max(1,BEH.buys.filter(b=>!b.etf).length);
+const exBuys=BEH.buys.filter(b=>b.ex52!=null);const buyHit=exBuys.filter(b=>b.ex52>0).length/Math.max(1,exBuys.length);
+const sellOk=BEH.sells.filter(s=>s.f52!=null);const sellHit=sellOk.filter(s=>s.f52<fwd(BM(),s.i,52)).length/Math.max(1,sellOk.length);const regretSum=BEH.sells.reduce((a,s)=>a+s.regret,0);
+const avgTurn=mean(Object.values(COST).map(c=>c.turnPct));const feeDrag=FEES_ALL/YRS/Math.max(1,mean(SER.v.filter(v=>v>0)));
+const BSC=[
+ {k:'Instap',v:Math.round(.5*cl(1-avgRng,.2,.7)+.3*cl(buyHit,.3,.7)+.2*cl(1-chase,.5,1)),d:'Koop je op een gunstig moment, of na een flinke stijging?'},
+ {k:'Verkoop',v:sellOk.length?Math.round(.6*cl(sellHit,.2,.8)+.4*cl(-regretSum/Math.max(1,WHATIF.total)*10,-.5,.5)):60,d:'Deden je verkochte aandelen het daarna slechter dan de markt?'},
+ {k:'Discipline',v:cl(-(Math.log(BEH.disp.ratio||1)),-1.4,.7),d:'Verkoop je winnaars en verliezers even makkelijk (dispositie-effect)?'},
+ {k:'Kosten',v:cl(-feeDrag,-.01,-.0005),d:'Hoeveel van je rendement gaat op aan transactiekosten?'},
+ {k:'Spreiding',v:Math.round(.6*cl(EFFN,5,20)+.4*cl(-NLW,-.7,-.2)),d:'Effectief aantal posities en thuismarktvoorkeur.'},
+ {k:'Rust',v:Math.round(.6*cl(-avgTurn,-1,-.1)+.4*cl(-GAP,-.03,.01)),d:'Handelsfrequentie en de kloof tussen jouw rendement en dat van je beleggingen.'}];
+const BSCORE=Math.round(mean(BSC.map(s=>s.v)));
+// referentie: typische particuliere belegger volgens het onderzoek (indicatief)
+const BREF=[45,40,38,55,42,45];
+// --- leerpunten: wat we zien, wat onderzoek zegt, wat je kunt proberen ---
+function lessons(){const L=[];const add=(sev,title,seen,res,tryit,metric)=>L.push({sev,title,seen,res,tryit,metric});
+  const d=BEH.disp;
+  if(d.ratio>1.2)add(2,'Je verkoopt winnaars sneller dan verliezers',`Op je verkoopmomenten verkocht je ${pct(d.pgr,0)} van je winnaars maar ${pct(d.plr,0)} van je verliezers: ${nf2.format(d.ratio)} keer zo vaak winnaars.`,'odean98','Stel bij elke positie vooraf een reden om te verkopen vast. Vraag bij een verliezer: zou ik dit vandaag opnieuw kopen?',`${nf2.format(d.ratio)}×`);
+  else add(0,'Je verkoopt winnaars en verliezers even makkelijk',`Je verkoopratio winnaars/verliezers is ${nf2.format(d.ratio)}. Dat is beter dan de gemiddelde belegger (rond 1,5).`,'odean98','Houd dit vast door verkoopredenen in je dagboek te noteren.',`${nf2.format(d.ratio)}×`);
+  if(avgRng>.6)add(2,'Je koopt vaak dicht bij de top van het jaar',`Gemiddeld kocht je op ${pct(avgRng,0)} van de jaarband (0% is de jaarbodem, 100% de top). ${pct(chase,0)} van je aandelenaankopen kwam na een stijging van meer dan 20% in drie maanden.`,'barber08','Zet een aankoop eerst op een wachtlijst met een koersdoel. Koop in twee of drie delen in plaats van in één keer.',pct(avgRng,0));
+  else add(0,'Je instapmomenten zijn rustig gekozen',`Je kocht gemiddeld op ${pct(avgRng,0)} van de jaarband en zelden na een sterke stijging.`,'barber08','Blijf een wachtlijst met koersdoelen gebruiken.',pct(avgRng,0));
+  if(sellOk.length){const better=sellOk.filter(s=>s.f52>.1);if(regretSum>0)add(regretSum>WHATIF.total*.05?2:1,'Je verkochte aandelen liepen daarna verder op',`Een jaar na verkoop stonden je verkochte posities samen ${eurS(regretSum)} hoger dan je verkoopprijs. ${better.length} van de ${sellOk.length} verkopen stegen daarna meer dan 10%.`,'odean99','Verkoop in delen, en noteer vooraf waarom je verkoopt. Kijk na een jaar terug in je dagboek.',eur(regretSum)+' gemist');
+    else add(0,'Je verkoopmomenten pakten goed uit',`Een jaar na verkoop stonden je verkochte posities samen ${eur(-regretSum)} lager dan je verkoopprijs.`,'odean99','Noteer in je dagboek wat je toen zag, zodat je dit kunt herhalen.',eur(-regretSum)+' bespaard');}
+  if(GAP<-.005)add(2,'Je rendement blijft achter bij dat van je beleggingen',`Je beleggingen haalden ${pct(TWRA)} per jaar (tijdgewogen), jij ${pct(IRR)} (geldgewogen). Het verschil van ${pct(-GAP)} per jaar komt door het moment waarop je geld erbij deed of eruit haalde.`,'mstar25','Beleg een vast bedrag op een vaste dag. Dan hangt je instap niet van je gevoel af.',pctS(GAP));
+  else add(0,'Je timing van stortingen werkt in je voordeel',`Je geldgewogen rendement (${pct(IRR)}) ligt ${pct(GAP)} per jaar boven het tijdgewogen rendement (${pct(TWRA)}): je stortte vaker op gunstige momenten.`,'mstar25','Periodiek beleggen houdt dit vol zonder dat je de markt hoeft te voorspellen.',pctS(GAP));
+  if(NLW>.35)add(1,'Sterke thuismarktvoorkeur',`${pct(NLW,0)} van je vermogen zit in Nederlandse aandelen, tegen ruim 1% in de MSCI World.`,'french91','Gebruik nieuwe inleg eerst voor regio\'s waar je weinig hebt. De tab Spreiding laat zien waar.',pct(NLW,0));
+  if(EFFN<12)add(1,'Je portefeuille is geconcentreerder dan hij lijkt',`Je hebt ${OPEN.length} posities, maar door de verschillen in gewicht gedraagt hij zich als ${nf1.format(EFFN)} gelijke posities.`,'bessem18','Overweeg een maximum per positie, bijvoorbeeld 8%, en stel dat in bij je eigen regels.',nf1.format(EFFN));
+  if(avgTurn>.5)add(1,'Je handelt relatief veel',`Je omloopsnelheid is gemiddeld ${pct(avgTurn,0)} per jaar. Transactiekosten waren in totaal ${eur(FEES_ALL)}.`,'afm15','Vaste momenten om te handelen (bijvoorbeeld eens per kwartaal) halen impulsaankopen eruit.',pct(avgTurn,0));
+  else add(0,'Je kosten zijn laag',`Transactiekosten waren in totaal ${eur(FEES_ALL)}, zo'n ${pct(feeDrag,2)} van je vermogen per jaar.`,'barber00','Blijf letten op valutakosten bij buitenlandse aandelen.',eur(FEES_ALL));
+  const sp=CLOSED_OPT.filter(o=>o.side<0);if(sp.length){const wins=sp.filter(o=>o.pnl>0);const avgW=mean(wins.map(o=>o.pnl)),worst=Math.min(...sp.map(o=>o.pnl));const n=Math.round(-worst/avgW);
+    add(n>10?2:1,'Schrijven van opties: veel kleine winsten, af en toe een grote klap',`${pct(wins.length/sp.length,0)} van je geschreven opties was winstgevend, gemiddeld ${eur(avgW)}. Je grootste verlies (${eur(worst)}) kostte de winst van ${n} trades.`,'hoffmann14','Bepaal vooraf je maximale verlies per positie en houd je aan een stop. Bekijk in de tab Opties het uitbetalingsprofiel.',`${n}×`);}
+  const lot=OPEN.filter(x=>!x.etf&&x.vol>.45);if(lot.length)add(1,'Een deel zit in zeer beweeglijke aandelen',`${lot.map(x=>x.t).join(', ')} bewegen meer dan 45% per jaar en vormen samen ${pct(lot.reduce((a,x)=>a+x.w,0),0)} van je portefeuille.`,'kumar09','Geef zulke posities bewust een kleiner gewicht.',pct(lot.reduce((a,x)=>a+x.w,0),0));
+  return L.sort((a,b)=>b.sev-a.sev);}
+const LESSONS=lessons();
+
+/* ---------- dagboek (lokaal opgeslagen tot er een login is) ---------- */
+const MOTIVES=['Waardering','Groei','Dividend','Momentum','Nieuws','Tip of forum','Spreiding','Periodiek','Winst nemen','Verlies nemen','Herbalanceren','Geld nodig'];
+const EMOS=[['😰','Angstig'],['😟','Onzeker'],['😐','Neutraal'],['🙂','Zeker'],['🤩','Euforisch']];
+const JKEY='pk-dagboek-v1';
+let JOURNAL={};try{JOURNAL=JSON.parse(localStorage.getItem(JKEY)||'{}')||{};}catch(_){JOURNAL={};}
+const txId=t=>`${new Date(t.d).toISOString().slice(0,10)}-${t.ty}-${t.t}-${t.q}`;
+function demoEntry(t){const r=rng('j'+txId(t));if(r()<.25)return null;const x=BY[t.t];const i=widx(t.d);
+  const mot=t.ty==='BUY'?(x.etf?['Periodiek','Spreiding']:[r()<.4?'Waardering':r()<.5?'Groei':r()<.5?'Dividend':r()<.6?'Momentum':'Nieuws']):[r()<.5?'Winst nemen':r()<.5?'Herbalanceren':'Verlies nemen'];
+  const run=i>=13?x.px[i]/x.px[i-13]-1:0;const emo=Math.max(0,Math.min(4,2+Math.round(run*6+(r()-.5)*1.5)));
+  return {demo:true,motives:mot,conv:1+Math.floor(r()*5),emo,horizon:['< 1 jaar','1-3 jaar','> 3 jaar'][Math.floor(r()*3)],target:t.ty==='BUY'&&!x.etf?+(t.price*(1.15+r()*.3)).toFixed(2):null,
+   note:t.ty==='BUY'?(x.etf?'Vaste inleg volgens plan.':['Koers terug na daling, fundament onveranderd.','Sterke cijfers, wil erbij zijn.','Analisten positief, koersdoel ruim hoger.','Mooi dividend, rustig bedrijf.','Iedereen heeft het erover, bang om de boot te missen.'][Math.floor(r()*5)]):['Doel bereikt.','Positie werd te groot.','Verhaal klopt niet meer.','Geld nodig voor iets anders.'][Math.floor(r()*4)]};}
+const jEntry=t=>JOURNAL[txId(t)]||(JOURNAL._noDemo?null:demoEntry(t));
+function saveJ(){try{localStorage.setItem(JKEY,JSON.stringify(JOURNAL));}catch(_){}}
+const RULES_KEY='pk-regels-v1';
+const RULE_DEF=[{id:'maxpos',l:'Maximaal % per positie',v:10,u:'%'},{id:'nochase',l:'Niet kopen na een stijging van meer dan … in 3 maanden',v:25,u:'%'},{id:'maxtrades',l:'Maximaal aantal aan- en verkopen per jaar',v:12,u:''},{id:'minhold',l:'Minimale houdperiode voor een verkoop',v:12,u:'mnd'},{id:'journal',l:'Elke transactie een dagboeknotitie',v:1,u:'aan/uit'}];
+let RULES={};try{RULES=JSON.parse(localStorage.getItem(RULES_KEY)||'{}')||{};}catch(_){RULES={};}
+const rv=id=>RULES[id]??RULE_DEF.find(r=>r.id===id).v;
+function ruleBreaks(){const out=[];const byY={};
+  TRADES.forEach(t=>{const y=new Date(t.d).getUTCFullYear();byY[y]=(byY[y]||0)+1;const x=t.x;
+    if(t.ty==='BUY'&&!x.etf&&t.i>=13&&x.px[t.i]/x.px[t.i-13]-1>rv('nochase')/100)out.push({d:t.d,t:t.t,r:'nochase',s:`Gekocht na ${pctS(x.px[t.i]/x.px[t.i-13]-1,0)} in 3 maanden`});
+    if(t.ty==='SELL'){const b=TRADES.filter(u=>u.t===t.t&&u.ty==='BUY'&&u.d<=t.d).pop();if(b&&(t.d-b.d)/DAY<rv('minhold')*30.4)out.push({d:t.d,t:t.t,r:'minhold',s:`Verkocht ${Math.round((t.d-b.d)/DAY/30.4)} maanden na de laatste aankoop`});}
+    if(rv('journal')&&!jEntry(t))out.push({d:t.d,t:t.t,r:'journal',s:'Geen dagboeknotitie'});});
+  Object.entries(byY).forEach(([y,n])=>{if(n>rv('maxtrades'))out.push({d:Date.UTC(+y,11,31),t:'–',r:'maxtrades',s:`${n} aan- en verkopen in ${y}`});});
+  OPEN.filter(x=>x.w>rv('maxpos')/100).forEach(x=>out.push({d:TODAY,t:x.t,r:'maxpos',s:`Nu ${pct(x.w)} van je portefeuille`}));
+  return out.sort((a,b)=>b.d-a.d);}
+
+/* ---------- weergave ---------- */
+let coachJ=null, jFilter='ALL';
+function renderCoach(){const b=base();
+  $('#coHero').innerHTML=`<div class="scorering" style="--v:${BSCORE}"><b class="num">${BSCORE}</b><span>van 100</span></div>
+   <div class="t"><span class="eyebrow">Jouw beleggersprofiel</span><h2 style="margin:4px 0 6px">${BSCORE>=70?'Gedisciplineerde belegger':BSCORE>=55?'Bewuste belegger met leerpunten':'Hier valt veel te winnen'}</h2>
+   <p style="margin:0;color:var(--ink-2);max-width:62ch">Gebaseerd op ${TRADES.length} aan- en verkopen, ${CLOSED_OPT.length} optietrades en ${NW} weken koersen. We vergelijken jouw beslissingen met wat er daarna gebeurde, en met wat onderzoek over particuliere beleggers zegt.</p></div>
+   <div class="comini">${[['Leerpunten',LESSONS.filter(l=>l.sev===2).length],['Gemist na verkoop',eur(Math.max(0,regretSum))],['Gedragskloof',pctS(GAP)],['Regelbreuken',ruleBreaks().length]].map(([l,v])=>`<div><span>${l}</span><b class="num">${v}</b></div>`).join('')}</div>`;
+  C('chCoRadar').setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${p.name}</b><br>`+BSC.map((s,k)=>`${s.k}: ${p.value[k]}`).join('<br>')},legend:{bottom:0,left:'center',textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   radar:{indicator:BSC.map(s=>({name:s.k,max:100})),radius:NARROW()?'58%':'66%',center:['50%','46%'],splitNumber:4,shape:'circle',axisName:{color:b.ink2,fontSize:12,fontWeight:600},splitLine:{lineStyle:{color:b.line}},splitArea:{areaStyle:{color:['transparent']}},axisLine:{lineStyle:{color:b.line}}},
+   series:[{type:'radar',symbol:'circle',symbolSize:6,data:[{name:'Gemiddelde particuliere belegger',value:BREF,lineStyle:{color:b.mkt,type:'dashed',width:1.5},itemStyle:{color:b.mkt},areaStyle:{opacity:0}},
+    {name:'Jij',value:BSC.map(s=>s.v),lineStyle:{color:b.acc,width:2.2},itemStyle:{color:b.acc},areaStyle:{color:hexA(b.acc,.22)}}]}]});
+  $('#coBars').innerHTML=BSC.map(s=>`<div class="cobar"><div><b>${s.k}</b><small>${s.d}</small></div><div class="track"><i style="width:${s.v}%;background:${s.v>=65?'var(--good)':s.v>=45?'var(--accent)':'var(--bad)'}"></i></div><span class="num">${s.v}</span></div>`).join('');
+  // leerpunten
+  $('#coLessons').innerHTML=LESSONS.map(l=>{const R=RESEARCH[l.res];return `<article class="lesson s${l.sev}"><header><span class="lv">${l.sev===2?'Belangrijk leerpunt':l.sev===1?'Let op':'Goed bezig'}</span><b class="num">${l.metric}</b></header>
+   <h3>${l.title}</h3><p>${l.seen}</p><div class="res"><span>Wat onderzoek zegt</span>${R.k}<em>${R.t}</em></div><div class="try"><span>Probeer dit</span>${l.tryit}</div></article>`;}).join('');
+  // instapmomenten: beeswarm op de jaarband
+  const bs=BEH.buys.filter(x=>!x.etf);const lanes=[];const pts=bs.map(x=>{let lane=0;for(const L of [0,1,-1,2,-2,3,-3,4,-4]){if(!lanes.some(q=>q.l===L&&Math.abs(q.v-x.rng52)<.045)){lane=L;break;}}lanes.push({l:lane,v:x.rng52});return {x,lane};});
+  C('chCoBuy').setOption({textStyle:b.text,grid:{left:12,right:12,top:30,bottom:44},tooltip:{...b.tip,trigger:'item',formatter:p=>{const x=p.data.x;return `<b>${x.t}</b> gekocht ${fdate(x.d)}<br>Op ${pct(x.rng52,0)} van de jaarband<br>3 maanden ervoor: ${x.run13!=null?pctS(x.run13):'–'}<br>Jaar erna t.o.v. MSCI World: ${x.ex52!=null?pctS(x.ex52):'nog geen jaar'}<br>Bedrag ${eur(x.amt)}`;}},
+   xAxis:{type:'value',min:0,max:100,...b.ax,splitLine:{show:false},name:'← jaarbodem          positie in de jaarband          jaartop →',nameLocation:'middle',nameGap:28,nameTextStyle:{color:b.ink3,fontSize:11.5},axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   yAxis:{type:'value',min:-5,max:5,show:false},visualMap:{show:false,dimension:2,min:-.3,max:.3,inRange:{color:[b.bad,css('--div-mid'),b.good]}},
+   series:[{type:'scatter',data:pts.map(p=>({value:[+(p.x.rng52*100).toFixed(1),p.lane,p.x.ex52??0],x:p.x,symbolSize:8+Math.sqrt(p.x.amt)/9,itemStyle:{borderColor:b.sf,borderWidth:1.5,opacity:p.x.ex52==null?.45:.95}})),
+     markArea:{silent:true,data:[[{xAxis:0,itemStyle:{color:hexA(b.good,.06)}},{xAxis:33}],[{xAxis:67,itemStyle:{color:hexA(b.bad,.06)}},{xAxis:100}]]},
+     markLine:{silent:true,symbol:'none',data:[{xAxis:+(avgRng*100).toFixed(1)}],lineStyle:{color:b.acc,width:2},label:{formatter:'jouw gemiddelde '+pct(avgRng,0),color:b.acc,fontWeight:600}}}]});
+  $('#coBuyNote').textContent=`Elke stip is een aankoop van een los aandeel; grootte is het bedrag. Groen: het aandeel deed het het jaar erna beter dan de MSCI World, rood: slechter. ${pct(buyHit,0)} van je aankopen versloeg de markt in het jaar erna.`;
+  // na de verkoop
+  const ss=BEH.sells;const med=[];for(let k=0;k<=52;k++){const v=ss.map(s=>s.path[k]).filter(v=>v!=null).sort((a,b2)=>a-b2);med.push(v.length?v[Math.floor(v.length/2)]*100:null);}
+  C('chCoSell').setOption({textStyle:b.text,grid:{left:8,right:16,top:16,bottom:30,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>p.seriesName==='Mediaan'?`Mediaan na ${p.dataIndex} weken: ${pctS(p.value/100)}`:`<b>${p.seriesName}</b><br>${p.dataIndex} weken na verkoop: ${pctS(p.value/100)}`},
+   xAxis:{type:'category',data:[...Array(53).keys()],...b.ax,splitLine:{show:false},name:'weken na verkoop',nameLocation:'middle',nameGap:24,nameTextStyle:{color:b.ink3},axisLabel:{...b.ax.axisLabel,interval:12}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[...ss.map(s=>({name:`${s.t}, ${fdate(s.d)}`,type:'line',showSymbol:false,data:s.path.map(v=>+(v*100).toFixed(1)),lineStyle:{width:1.3,color:s.path.at(-1)>0?hexA(b.bad,.55):hexA(b.good,.55)},emphasis:{focus:'series',lineStyle:{width:2.5}}})),
+    {name:'Mediaan',type:'line',showSymbol:false,data:med,lineStyle:{width:3,color:b.acc},z:5,markLine:{silent:true,symbol:'none',data:[{yAxis:0}],lineStyle:{color:b.ink3},label:{show:false}}}]});
+  $('#coSellTbl').innerHTML=`<thead><tr><th>Verkoop</th><th class="n">Resultaat</th><th class="n">Jaar erna</th><th class="n">Gemist / bespaard</th></tr></thead><tbody>`+ss.map(s=>`<tr><td><b>${s.t}</b><span class="sub2">${fdate(s.d)} · ${Math.round(s.held/30.4)} mnd gehouden</span></td><td class="n num ${cls(s.gain)}">${pctS(s.gain)}</td><td class="n num ${s.f52==null?'':s.f52>0?'down':'up'}">${s.f52==null?'–':pctS(s.f52)}</td><td class="n num ${s.regret>0?'down':'up'}">${eurS(-s.regret)}</td></tr>`).join('')+'</tbody>';
+  // dispositie
+  const d=BEH.disp;C('chCoDisp').setOption({textStyle:b.text,grid:{left:8,right:24,top:30,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>pct(v/100,1)},
+   xAxis:{type:'category',data:['Winnaars verkocht (PGR)','Verliezers verkocht (PLR)'],...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,color:b.ink2,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{name:'Jij',type:'bar',barWidth:34,data:[+(d.pgr*100).toFixed(1),+(d.plr*100).toFixed(1)],itemStyle:{color:b.acc,borderRadius:[4,4,0,0]},label:{show:true,position:'top',color:b.ink,fontWeight:600,formatter:p=>pct(p.value/100,1)}},
+    {name:'Gemiddelde belegger (Odean 1998)',type:'bar',barWidth:34,data:[14.8,9.8],itemStyle:{color:hexA(b.mkt,.55),borderRadius:[4,4,0,0]},label:{show:true,position:'top',color:b.ink2,formatter:p=>pct(p.value/100,1)}}]});
+  const allPos=[...BEH.closed.map(c=>({...c,open:false})),...BEH.open.map(o=>({...o,open:true}))];
+  C('chCoHold').setOption({textStyle:b.text,grid:{left:8,right:16,top:16,bottom:30,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>{const r=p.data.r;return `<b>${r.t}</b> ${r.open?'(nog in bezit)':'(verkocht)'}<br>${Math.round(r.days/30.4)} maanden · ${pctS(r.ret)}`;}},
+   xAxis:{type:'value',...b.ax,splitLine:{show:false},name:'maanden in bezit',nameLocation:'middle',nameGap:24,nameTextStyle:{color:b.ink3}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{type:'scatter',data:allPos.map(r=>({value:[+(r.days/30.4).toFixed(1),+(Math.min(4,r.ret)*100).toFixed(1)],r,symbol:r.open?'circle':'diamond',symbolSize:r.open?11:13,itemStyle:{color:r.ret>=0?b.good:b.bad,opacity:r.open?.55:1,borderColor:b.sf,borderWidth:1.5},label:{show:!NARROW(),formatter:r.t,position:'right',color:b.ink3,fontSize:10}})),markLine:{silent:true,symbol:'none',data:[{yAxis:0}],lineStyle:{color:b.ink3},label:{show:false}}}]});
+  // rendementskloof
+  const ki=[];for(let i=0;i<NW;i+=1)ki.push(i);
+  C('chCoGap').setOption({textStyle:b.text,grid:{left:8,right:12,top:16,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',formatter:p=>`${fdate(p[0].value[0])}<br>`+p.filter(q=>q.seriesType==='line').map(q=>`${q.marker}${q.seriesName}: ${pct(q.value[1]/100-1)}`).join('<br>')},
+   xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>pctS(v/100-1,0)}},
+   series:[{name:'Je beleggingen (tijdgewogen)',type:'line',showSymbol:false,data:ki.map(i=>[wdate(i),+SER.idx[i].toFixed(2)]),lineStyle:{color:b.acc,width:2},itemStyle:{color:b.acc}},
+    {name:'Stortingen',type:'scatter',data:ki.filter(i=>SER.cf[i]>500).map(i=>{const f=fwd(SER.idx,i,52);return {value:[wdate(i),+SER.idx[i].toFixed(2)],symbolSize:5+Math.sqrt(SER.cf[i])/10,itemStyle:{color:f==null?b.ink3:f>0?b.good:b.bad,opacity:.85,borderColor:b.sf,borderWidth:1}};}),tooltip:{show:false}},
+    {name:'Opnames',type:'scatter',symbol:'triangle',data:ki.filter(i=>SER.cf[i]<-500).map(i=>({value:[wdate(i),+SER.idx[i].toFixed(2)],symbolSize:8+Math.sqrt(-SER.cf[i])/12,itemStyle:{color:b.mkt}})),tooltip:{show:false}}]});
+  $('#coGapKpis').innerHTML=[['Je beleggingen, per jaar',pct(TWRA),'tijdgewogen: los van wanneer je geld erbij deed'],['Jij, per jaar',pct(IRR),'geldgewogen: inclusief jouw timing'],['Gedragskloof',pctS(GAP),'Morningstar: gemiddeld ruim −1% per jaar']].map(([l,v,s])=>`<div class="kpi"><span>${l}</span><b>${v}</b><small style="color:var(--ink-3)">${s}</small></div>`).join('');
+  // wat als
+  const step=NARROW()?2:1;const wi=[];for(let i=0;i<NW;i+=step)wi.push(i);
+  C('chCoWhat').setOption({textStyle:b.text,grid:{left:8,right:12,top:NARROW()?78:36,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2,fontSize:11.5},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',valueFormatter:v=>eur(v)},xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
+   series:[{name:'Werkelijk (incl. verkoopopbrengst)',type:'line',showSymbol:false,data:wi.map(i=>[wdate(i),Math.round(WHATIF.actualPlus[i])]),lineStyle:{color:b.acc,width:2.4},itemStyle:{color:b.acc},areaStyle:{color:hexA(b.acc,.08)}},
+    {name:'Nooit iets verkocht',type:'line',showSymbol:false,data:wi.map(i=>[wdate(i),Math.round(WHATIF.keep[i])]),lineStyle:{color:b.cat[2],width:1.6},itemStyle:{color:b.cat[2]}},
+    {name:'Alles in MSCI World',type:'line',showSymbol:false,data:wi.map(i=>[wdate(i),Math.round(WHATIF.world[i])]),lineStyle:{color:b.mkt,width:1.6,type:'dashed'},itemStyle:{color:b.mkt}},
+    {name:'Vast bedrag per maand in MSCI World',type:'line',showSymbol:false,data:wi.map(i=>[wdate(i),Math.round(WHATIF.dca[i])]),lineStyle:{color:b.cat[0],width:1.6,type:'dotted'},itemStyle:{color:b.cat[0]}}]});
+  const fin={a:WHATIF.actualPlus[NW-1],k:WHATIF.keep[NW-1],w:WHATIF.world[NW-1],c:WHATIF.dca[NW-1]};
+  $('#coWhatNote').innerHTML=`Zonder ooit te verkopen had je nu <b>${eurS(fin.k-fin.a)}</b> ${fin.k>fin.a?'meer':'minder'} gehad. Met alles in de MSCI World <b>${eurS(fin.w-fin.a)}</b>, met een vast maandbedrag <b>${eurS(fin.c-fin.a)}</b>. Opties en dividend tellen hier niet mee.`;
+  // kosten en handel per jaar
+  const ys=Object.keys(COST).map(Number).sort();C('chCoCost').setOption({textStyle:b.text,grid:{left:8,right:8,top:36,bottom:8,containLabel:true},legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},
+   tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}}},xAxis:{type:'category',data:ys.map(y=>NARROW()?"'"+String(y).slice(2):String(y)),...b.ax,splitLine:{show:false}},
+   yAxis:[{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v)}},{type:'value',...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}}],
+   series:[{name:'Kosten',type:'bar',barMaxWidth:26,data:ys.map(y=>Math.round(COST[y].fee)),itemStyle:{color:b.cat[3],borderRadius:[3,3,0,0]},tooltip:{valueFormatter:v=>eur(v)}},
+    {name:'Omloopsnelheid',type:'line',yAxisIndex:1,data:ys.map(y=>+(COST[y].turnPct*100).toFixed(0)),lineStyle:{color:b.acc,width:2},itemStyle:{color:b.acc},symbolSize:6,tooltip:{valueFormatter:v=>v+'%'}}]});
+  renderJournal();renderRules();
+  $('#coLib').innerHTML=Object.values(RESEARCH).map(r=>`<article class="libcard"><p>${r.k}</p><em>${r.t}</em></article>`).join('');}
+
+function renderJournal(){const b=base();const xs=TX.filter(t=>t.ty==='BUY'||t.ty==='SELL').slice().reverse();
+  const rows=xs.filter(t=>jFilter==='ALL'||(jFilter==='OPEN'?!jEntry(t):!!jEntry(t)));const done=xs.filter(t=>jEntry(t)).length;
+  $('#jCount').textContent=`${done} van de ${xs.length} transacties hebben een notitie. ${Object.keys(JOURNAL).filter(k=>k!=='_noDemo').length?'Je eigen notities worden in deze browser bewaard.':'De notities zijn voorbeelden. Klik op een transactie om je eigen notitie te schrijven; die wordt in deze browser bewaard.'}`;
+  $('#tblJournal').innerHTML=`<thead><tr><th>Datum</th><th>Transactie</th><th>Waarom</th><th>Gevoel</th><th class="n">Overtuiging</th><th class="n">Resultaat sindsdien</th></tr></thead><tbody>`+
+   rows.slice(0,80).map(t=>{const e=jEntry(t);const x=BY[t.t];const since=t.ty==='BUY'?x.p/t.price-1:-(x.p/t.price-1);
+    return `<tr class="jrow" data-id="${txId(t)}" tabindex="0"><td class="num">${fdate(t.d)}</td><td><div class="tk">${logo(x,24)}<div><b>${t.ty==='BUY'?'Koop':'Verkoop'} ${t.t}</b><small>${nf0.format(t.q)} × ${px(x,t.price)}</small></div></div></td>
+     <td>${e?e.motives.map(m=>`<span class="chip">${m}</span>`).join(' ')+(e.demo?' <span class="chip demo">voorbeeld</span>':''):'<span class="addnote">+ notitie toevoegen</span>'}</td><td style="font-size:18px">${e?EMOS[e.emo][0]:''}</td><td class="n num">${e?'●'.repeat(e.conv)+'<span style="opacity:.25">'+'●'.repeat(5-e.conv)+'</span>':''}</td>
+     <td class="n num ${cls(since)}">${pctS(since)}</td></tr>`;}).join('')+'</tbody>';
+  // analyse: rendement per motief (aankopen), overtuiging vs resultaat
+  const buys=xs.filter(t=>t.ty==='BUY'&&jEntry(t));const byM={};buys.forEach(t=>{const e=jEntry(t);const x=BY[t.t];const i=widx(t.d);const f=fwd(x.px,i,52);const bm=fwd(BM(),i,52);if(f==null)return;e.motives.forEach(m=>{(byM[m]=byM[m]||[]).push((1+f)/(1+bm)-1);});});
+  const mm=Object.entries(byM).map(([m,v])=>[m,mean(v),v.length]).sort((a,b2)=>b2[1]-a[1]);
+  C('chJMot').setOption({textStyle:b.text,grid:{left:8,right:48,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${mm[p.dataIndex][0]}</b><br>Jaar na aankoop t.o.v. MSCI World: ${pctS(p.value/100)}<br>${mm[p.dataIndex][2]} aankopen`},
+   xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},yAxis:{type:'category',inverse:true,data:mm.map(r=>r[0]),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2}},
+   series:[{type:'bar',barWidth:12,data:mm.map(r=>({value:+(r[1]*100).toFixed(1),itemStyle:{color:r[1]>=0?b.good:b.bad,borderRadius:r[1]>=0?[0,4,4,0]:[4,0,0,4]}})),label:{show:true,position:'right',color:b.ink2,fontSize:11,formatter:p=>pctS(p.value/100)}}]});
+  const emoR=EMOS.map((_,k)=>{const v=buys.filter(t=>jEntry(t).emo===k).map(t=>{const x=BY[t.t];const i=widx(t.d);const f=fwd(x.px,i,52),bm=fwd(BM(),i,52);return f==null?null:(1+f)/(1+bm)-1;}).filter(v=>v!=null);return [k,v.length?mean(v):null,v.length];});
+  C('chJEmo').setOption({textStyle:b.text,grid:{left:8,right:8,top:20,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`${EMOS[p.dataIndex][1]}: ${p.value==null?'–':pctS(p.value/100)} t.o.v. de markt (${emoR[p.dataIndex][2]} aankopen)`},
+   xAxis:{type:'category',data:EMOS.map(e=>e[0]+' '+(NARROW()?'':e[1])),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,fontSize:13,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   series:[{type:'bar',barWidth:'50%',data:emoR.map(r=>r[1]==null?null:{value:+(r[1]*100).toFixed(1),itemStyle:{color:r[1]>=0?b.good:b.bad,borderRadius:3}}),label:{show:true,position:'top',color:b.ink2,fontSize:11,formatter:p=>pctS(p.value/100)}}]});}
+
+function openJournal(id){const t=TX.find(u=>(u.ty==='BUY'||u.ty==='SELL')&&txId(u)===id);if(!t)return;coachJ=id;const e=JOURNAL[id]||{motives:[],conv:3,emo:2,horizon:'1-3 jaar',target:null,note:'',reflect:''};const x=BY[t.t];const dr=$('#drawer');
+  const after=t.ty==='BUY'?x.p/t.price-1:-(x.p/t.price-1);
+  dr.innerHTML=`<button class="x" id="dx" aria-label="Sluiten">×</button><div class="tk" style="padding-right:44px">${logo(x,40)}<div><h2 style="font-size:20px">${t.ty==='BUY'?'Koop':'Verkoop'} ${x.n}</h2><small style="max-width:none">${fdate(t.d)} · ${nf0.format(t.q)} × ${px(x,t.price)} · sindsdien <span class="${cls(after)}">${pctS(after)}</span></small></div></div>
+   <form id="jform" class="jform">
+    <label>Waarom deed je dit?</label><div class="chips">${MOTIVES.map(m=>`<button type="button" class="chip sel${e.motives.includes(m)?' on':''}" data-m="${m}">${m}</button>`).join('')}</div>
+    <label>Hoe voelde je je?</label><div class="emos">${EMOS.map(([em,l],k)=>`<button type="button" class="emo${e.emo===k?' on':''}" data-e="${k}" title="${l}">${em}<small>${l}</small></button>`).join('')}</div>
+    <label>Hoe zeker was je? <span class="num" id="convV">${e.conv}/5</span></label><input type="range" min="1" max="5" step="1" value="${e.conv}" id="jconv">
+    <div class="g2"><div><label>Horizon</label><select id="jhor">${['< 1 jaar','1-3 jaar','> 3 jaar'].map(h=>`<option${e.horizon===h?' selected':''}>${h}</option>`).join('')}</select></div>
+     <div><label>${t.ty==='BUY'?'Koersdoel':'Prijs waarop je terug zou kopen'}</label><input id="jtgt" type="number" step="0.01" inputmode="decimal" value="${e.target??''}" placeholder="${px(x,t.price*1.2)}"></div></div>
+    <label>Wat is je verhaal? Wat moet er gebeuren om ongelijk te hebben?</label><textarea id="jnote" rows="4" placeholder="Bijvoorbeeld: koers terug na daling, orderboek sterk. Ik verkoop als de marge twee kwartalen daalt.">${e.demo?'':(e.note||'')}</textarea>
+    <label>Terugblik (vul later in)</label><textarea id="jref" rows="3" placeholder="Klopte je verhaal? Wat leer je ervan?">${e.reflect||''}</textarea>
+    <div class="jact"><button type="submit" class="btn primary">Bewaar notitie</button>${JOURNAL[id]?'<button type="button" class="btn" id="jdel">Verwijder</button>':''}</div>
+    <p class="note">Wordt alleen in deze browser bewaard. Met een account komt dit later in je profiel.</p></form>`;
+  dr.hidden=false;$('#scrim').hidden=false;$('#dx').onclick=closeDrawer;
+  dr.querySelectorAll('.chip.sel').forEach(c=>c.onclick=()=>c.classList.toggle('on'));
+  dr.querySelectorAll('.emo').forEach(c=>c.onclick=()=>{dr.querySelectorAll('.emo').forEach(o=>o.classList.remove('on'));c.classList.add('on');});
+  $('#jconv').oninput=ev=>$('#convV').textContent=ev.target.value+'/5';
+  if($('#jdel'))$('#jdel').onclick=()=>{delete JOURNAL[id];saveJ();closeDrawer();renderJournal();renderRules();};
+  $('#jform').onsubmit=ev=>{ev.preventDefault();const on=[...dr.querySelectorAll('.chip.sel.on')].map(c=>c.dataset.m);const em=dr.querySelector('.emo.on');
+    JOURNAL[id]={motives:on.length?on:['Overig'],emo:em?+em.dataset.e:2,conv:+$('#jconv').value,horizon:$('#jhor').value,target:$('#jtgt').value?+$('#jtgt').value:null,note:$('#jnote').value.trim(),reflect:$('#jref').value.trim(),saved:Date.now()};
+    saveJ();closeDrawer();renderJournal();renderRules();};}
+function renderRules(){const br=ruleBreaks();const RL=Object.fromEntries(RULE_DEF.map(r=>[r.id,r.l]));
+  $('#rulesForm').innerHTML=RULE_DEF.map(r=>`<label class="rule"><span>${r.l}</span>${r.u==='aan/uit'?`<input type="checkbox" data-r="${r.id}"${rv(r.id)?' checked':''}>`:`<span class="rin"><input type="number" data-r="${r.id}" value="${rv(r.id)}" min="0" inputmode="numeric"> ${r.u}</span>`}<em class="num">${br.filter(x=>x.r===r.id).length} keer</em></label>`).join('');
+  $('#rulesForm').querySelectorAll('input').forEach(inp=>inp.onchange=()=>{RULES[inp.dataset.r]=inp.type==='checkbox'?(inp.checked?1:0):+inp.value;try{localStorage.setItem(RULES_KEY,JSON.stringify(RULES));}catch(_){}renderRules();});
+  $('#rulesBreaks').innerHTML=br.length?br.slice(0,14).map(x=>`<div class="sig"><span class="ic bad">!</span><div>${x.t!=='–'?'<b>'+x.t+'</b> · ':''}${x.s}<small>${fdate(x.d)} · ${RL[x.r]}</small></div></div>`).join(''):'<p class="note">Geen regelbreuken. Mooi.</p>';}
+
 /* ============ drawer ============ */
 function openDrawer(t){const x=BY[t];if(!x||!x.q)return;const dr=$('#drawer');const nextD=DIVS.find(v=>v.t===t&&!v.hist);
   dr.innerHTML=`<button class="x" id="dx" aria-label="Sluiten">×</button>
@@ -901,6 +1140,8 @@ function openDrawer(t){const x=BY[t];if(!x||!x.q)return;const dr=$('#drawer');co
 function closeDrawer(){$('#drawer').hidden=true;$('#scrim').hidden=true;['chDrawer','chDrawerR'].forEach(k=>{if(charts[k]){charts[k].dispose();delete charts[k];}});}
 $('#scrim').onclick=closeDrawer;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
 document.addEventListener('click',e=>{const tr=e.target.closest('tr.click');if(tr)openDrawer(tr.dataset.t);});
+document.addEventListener('click',e=>{const tr=e.target.closest('tr.jrow');if(tr)openJournal(tr.dataset.id);});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.closest&&e.target.closest('tr.jrow');if(tr)openJournal(tr.dataset.id);}});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.closest&&e.target.closest('tr.click');if(tr)openDrawer(tr.dataset.t);}});
 
 /* ============ routing & controls ============ */
@@ -908,7 +1149,7 @@ const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTre
  analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
  waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
  belasting:()=>{renderTaxHero();renderTax();},
- opties:renderOptions, analisten:renderAnalysts, spreiding:renderSpread,
+ opties:renderOptions, analisten:renderAnalysts, coach:renderCoach, spreiding:renderSpread,
  rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
 function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
@@ -919,7 +1160,8 @@ function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.clo
 segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTaxHero();renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
 $('#bmPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){bmSel=bt.dataset.v;renderBench();}});
 segBind('#ovMode',d=>{ovMode=d.v;renderValue();});segBind('#ovRange',d=>{ovRange=+d.v;renderValue();});
-segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#ccyMode',d=>{ccyMode=d.v;renderSpread();});
+segBind('#divGran',d=>{divGran=d.v;renderDiv();});segBind('#ccyMode',d=>{ccyMode=d.v;renderSpread();});segBind('#jPick',d=>{jFilter=d.v;renderJournal();});
+$('#jClearDemo').onclick=()=>{JOURNAL._noDemo=!JOURNAL._noDemo;saveJ();$('#jClearDemo').textContent=JOURNAL._noDemo?'Toon voorbeeldnotities':'Verberg voorbeeldnotities';renderJournal();renderRules();};
 $('#payPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){payU=bt.dataset.v;renderOptions();}});
 $('#stratPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){stratSel=bt.dataset.v;$$('#stratPick button').forEach(x=>x.setAttribute('aria-pressed',x===bt));renderOptClosed();}});segBind('#txPick',d=>{txSel=d.v;renderTx();});
 $('#axisPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){axisSel=+bt.dataset.k;renderLift();renderChecks();}});

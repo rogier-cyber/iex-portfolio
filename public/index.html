@@ -32,6 +32,7 @@
       <a href="#belasting">Box 3</a>
       <a href="#opties">Opties</a>
       <a href="#analisten">Analisten</a>
+      <a href="#coach">Beter beleggen</a>
       <a href="#spreiding">Spreiding</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
@@ -260,6 +261,105 @@
     <div class="chart short" id="chIns"></div>
     <p class="note" id="insSrc"></p>
     <div class="tw" style="max-height:420px;overflow:auto;margin-top:10px"><table id="tblIns"></table></div>
+  </div>
+</section>
+
+<!-- BETER BELEGGEN -->
+<section class="view" id="v-coach" hidden>
+  <div class="panel cohero"><div class="hero" id="coHero"></div></div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Gedragskompas</h2><p>Zes kenmerken van goed beleggersgedrag, 0 tot 100. De stippellijn is een indicatie van de gemiddelde particuliere belegger volgens onderzoek.</p></div></header>
+      <div class="chart" id="chCoRadar" style="height:360px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Waar het zit</h2><p>Per kenmerk wat we meten.</p></div></header>
+      <div id="coBars" class="cobars"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Jouw leerpunten</h2><p>Wat we in je eigen transacties zien, wat onderzoek erover zegt en een concrete gewoonte om te proberen. Inzicht en educatie, geen persoonlijk beleggingsadvies.</p></div></header>
+    <div class="lessons" id="coLessons"></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Instapmomenten</h2><p>Waar in de koersband van het afgelopen jaar kocht je? Links is dicht bij de jaarbodem, rechts dicht bij de top.</p></div></header>
+    <div class="chart" id="chCoBuy" style="height:320px"></div>
+    <p class="note" id="coBuyNote"></p>
+  </div>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Na je verkoop</h2><p>Hoe de koers zich na elke verkoop ontwikkelde, tot een jaar later. Rood liep daarna op (verkoop te vroeg), groen daalde (goede verkoop). De gouden lijn is de mediaan.</p></div></header>
+      <div class="chart" id="chCoSell" style="height:340px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Per verkoop</h2><p>Gemist of bespaard een jaar later.</p></div></header>
+      <div class="tw"><table id="coSellTbl"></table></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Winnaars en verliezers</h2><p>Het dispositie-effect: op elke dag dat je iets verkocht, welk deel van je winnaars en van je verliezers verkocht je?</p></div></header>
+      <div class="chart" id="chCoDisp"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Houdperiode en resultaat</h2><p>Ruitjes zijn verkochte posities, rondjes heb je nog. Houd je verliezers langer vast dan winnaars?</p></div></header>
+      <div class="chart" id="chCoHold"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>De gedragskloof</h2><p>Het rendement van je beleggingen tegenover jouw eigen rendement. Stippen zijn stortingen: groen als de portefeuille daarna steeg, rood als hij daalde.</p></div></header>
+    <div class="kpis" id="coGapKpis" style="margin-bottom:12px"></div>
+    <div class="chart" id="chCoGap"></div>
+  </div>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Wat als</h2><p>Dezelfde stortingen, andere keuzes.</p></div></header>
+      <div class="chart" id="chCoWhat" style="height:340px"></div>
+      <p class="note" id="coWhatNote"></p>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Kosten en handel</h2><p>Transactiekosten en omloopsnelheid per jaar.</p></div></header>
+      <div class="chart" id="chCoCost" style="height:340px"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Beleggingsdagboek</h2><p id="jCount"></p></div><div class="seg" id="jPick"><button aria-pressed="true" data-v="ALL">Alles</button><button aria-pressed="false" data-v="OPEN">Zonder notitie</button><button aria-pressed="false" data-v="DONE">Met notitie</button></div></header>
+    <div class="tw" style="max-height:520px;overflow:auto"><table id="tblJournal"></table></div>
+    <button type="button" class="btn" id="jClearDemo" style="margin-top:10px">Verberg voorbeeldnotities</button>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Waarom je kocht, en hoe dat uitpakte</h2><p>Rendement in het jaar na aankoop tegenover de MSCI World, per reden uit je dagboek.</p></div></header>
+      <div class="chart" id="chJMot"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Gevoel bij aankoop</h2><p>Kocht je beter als je zeker was, of juist als je twijfelde?</p></div></header>
+      <div class="chart" id="chJEmo"></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Mijn regels</h2><p>Spreek regels met jezelf af. We controleren je hele geschiedenis erop.</p></div></header>
+      <div id="rulesForm" class="rules"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Regelbreuken</h2><p>Waar je volgens je eigen regels anders had gehandeld.</p></div></header>
+      <div id="rulesBreaks" class="sigs" style="max-height:420px;overflow:auto"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Voor je de volgende order plaatst</h2><p>Vijf vragen uit de beslispsychologie. Beantwoord ze in je dagboek.</p></div></header>
+    <ol class="precheck">
+      <li><b>Waarom nu?</b> Wat weet je vandaag dat de markt nog niet weet?</li>
+      <li><b>Wanneer heb je ongelijk?</b> Schrijf op welk feit je doet verkopen, voordat je koopt.</li>
+      <li><b>Past het in je spreiding?</b> Hoeveel procent wordt deze positie, en hoeveel in deze sector of dit land?</li>
+      <li><b>Zou je dit ook kopen als het 20% lager stond?</b> Dan kun je ook in delen kopen.</li>
+      <li><b>Hoe voel je je?</b> Euforie en angst zijn allebei slechte adviseurs.</li>
+    </ol>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Wat onderzoek zegt</h2><p>De studies achter de analyses op deze pagina.</p></div></header>
+    <div class="lib" id="coLib"></div>
   </div>
 </section>
 

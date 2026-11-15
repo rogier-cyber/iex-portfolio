@@ -266,3 +266,64 @@ footer.site b{color:var(--ink-2);font-weight:600}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .hero{flex-wrap:wrap}
 }
+/* beter beleggen */
+.cohero .hero{align-items:center;gap:28px;flex-wrap:wrap}
+.eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.scorering{--v:50;width:132px;height:132px;border-radius:50%;flex:none;display:grid;place-items:center;align-content:center;background:radial-gradient(closest-side,var(--surface) 78%,transparent 79% 100%),conic-gradient(var(--accent) calc(var(--v)*1%),color-mix(in srgb,var(--ink-3) 25%,transparent) 0);box-shadow:0 0 40px -10px color-mix(in srgb,var(--accent) 60%,transparent)}
+.scorering b{font:700 44px/1 var(--f-display);color:var(--ink)}
+.scorering span{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.cobars{display:flex;flex-direction:column;gap:14px;padding-top:4px}
+.cobar{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 34px;gap:12px;align-items:center}
+.cobar small{display:block;color:var(--ink-3);font-size:12px;margin-top:2px}
+.cobar .track{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.cobar .track i{display:block;height:100%;border-radius:4px}
+.cobar>span{text-align:right;font-weight:700;font-family:var(--f-display)}
+.lessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.lesson{border:1px solid var(--line);border-radius:12px;padding:16px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.lesson::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--good)}
+.lesson.s1::before{background:var(--accent)}.lesson.s2::before{background:var(--bad)}
+.lesson header{display:flex;justify-content:space-between;align-items:center}
+.lesson .lv{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;color:var(--good)}
+.lesson.s1 .lv{color:var(--accent)}.lesson.s2 .lv{color:var(--bad)}
+.lesson header b{font:700 20px/1 var(--f-display)}
+.lesson h3{margin:0;font-size:16px}
+.lesson p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.5}
+.lesson .res,.lesson .try{font-size:13px;line-height:1.5;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
+.lesson .res span,.lesson .try span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:700;margin-bottom:3px}
+.lesson .res em{display:block;font-style:normal;color:var(--ink-3);font-size:11.5px;margin-top:4px}
+.lesson .try{background:color-mix(in srgb,var(--accent) 9%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+.chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap}
+.chip.demo{color:var(--ink-3);border-style:dashed}
+.addnote{color:var(--accent);font-size:12.5px;font-weight:600}
+tr.jrow{cursor:pointer}tr.jrow:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.jform{display:flex;flex-direction:column;gap:8px}
+.jform label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:700;margin-top:8px;display:flex;justify-content:space-between}
+.jform .chips{display:flex;flex-wrap:wrap;gap:6px}
+.jform .chip.sel{cursor:pointer;font-size:12.5px;padding:5px 10px}
+.jform .chip.sel.on{background:color-mix(in srgb,var(--accent) 18%,transparent);border-color:var(--accent);color:var(--ink)}
+.jform .emos{display:flex;gap:6px}
+.jform .emo{flex:1;border:1px solid var(--line-2);background:var(--surface-2);border-radius:10px;padding:6px 2px;font-size:22px;cursor:pointer;color:var(--ink)}
+.jform .emo small{display:block;font-size:10px;color:var(--ink-3)}
+.jform .emo.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.jform input,.jform select,.jform textarea{width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;color:var(--ink);padding:8px 10px;font:inherit;font-size:14px}
+.jform input[type=range]{padding:0;accent-color:var(--accent)}
+.jform .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.jact{display:flex;gap:8px;margin-top:10px}
+.btn{border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);border-radius:8px;padding:8px 14px;font:inherit;font-size:13.5px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#14232b;font-weight:700}
+.rules{display:flex;flex-direction:column}
+.rule{display:grid;grid-template-columns:1fr auto 64px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.rule input[type=number]{width:62px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;color:var(--ink);padding:5px 6px;font:inherit}
+.rule input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}
+.rule em{font-style:normal;color:var(--ink-3);text-align:right;font-size:12.5px}
+.rin{white-space:nowrap;color:var(--ink-3)}
+.precheck{margin:0;padding-left:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px 28px;color:var(--ink-2);font-size:14px;line-height:1.5}
+.precheck b{color:var(--ink)}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.libcard{border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.5;color:var(--ink-2)}
+.libcard p{margin:0 0 6px}.libcard em{font-style:normal;color:var(--accent);font-size:11.5px}
+@media (max-width:640px){.scorering{width:104px;height:104px}.scorering b{font-size:34px}.cobar{grid-template-columns:1fr 70px 30px}.lessons{grid-template-columns:1fr}.rule{grid-template-columns:1fr auto}.rule em{grid-column:1/-1;text-align:left}.jform .g2{grid-template-columns:1fr}}
+.comini{margin-left:auto;display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:10px 22px}
+.comini span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);font-weight:600}
+.comini b{font:600 20px/1.2 var(--f-display)}
+@media (max-width:900px){.comini{margin-left:0;width:100%}}
