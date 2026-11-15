@@ -230,7 +230,7 @@ const rScore=c=>{if(!c)return null;const t=LEVELS.reduce((a,[k])=>a+(c[k]||0),0)
 const rLabel=s=>s==null?'–':s>=4.5?'Sterk kopen':s>=3.75?'Kopen':s>=3.25?'Licht kopen':s>=2.5?'Houden':s>=1.75?'Verkopen':'Sterk verkopen';
 const TXT={P:'Aankoop',S:'Verkoop',A:'Toekenning',M:'Optie-uitoefening',F:'Belasting',G:'Schenking',D:'Teruggave',C:'Conversie',X:'Optie-uitoefening',J:'Overig'};
 const txCode=t=>String(t||'').split('-')[0].toUpperCase();
-const roleNL=t=>{const s=String(t||'').toLowerCase();const o=[];if(/chief executive|\bceo\b/.test(s))o.push('CEO');if(/chief financial|\bcfo\b/.test(s))o.push('CFO');if(/director/.test(s))o.push('bestuurder');if(/officer/.test(s)&&!o.length)o.push('directielid');if(/10%|owner/.test(s))o.push('grootaandeelhouder');return o.join(', ')||t||'insider';};
+const roleNL=t=>{const s=String(t||'').toLowerCase();const o=[];if(/supervisory|commissaris/.test(s))return 'commissaris';if(/board member|bestuurder|executive board|management board/.test(s))return 'bestuurder';if(/chief executive|\bceo\b/.test(s))o.push('CEO');if(/chief financial|\bcfo\b/.test(s))o.push('CFO');if(/director/.test(s))o.push('bestuurder');if(/officer/.test(s)&&!o.length)o.push('directielid');if(/10%|owner/.test(s))o.push('grootaandeelhouder');return o.join(', ')||t||'insider';};
 // voorbeelddata als er geen live analistendata is
 function mockAnalyst(x){const r=rng('an'+x.t);const firms=['Broker A','Broker B','Broker C','Broker D','Broker E','Broker F','Broker G','Broker H','Broker I','Broker J'];
   const bull=Math.min(.95,Math.max(.15,.45+(x.fv/x.p-1)*1.6+(r()-.5)*.2));const tot=10+Math.floor(r()*22);
@@ -251,6 +251,7 @@ function mockAnalyst(x){const r=rng('an'+x.t);const firms=['Broker A','Broker B'
 STK.forEach(x=>{const L=LIVE&&LIVE.instruments[x.t];const F=L&&L.fundamentals;
   if(LIVE){const A=L&&L.analyst;x.an=A?{...A,cons:F&&F.analysts,hi:F&&F.targetHigh,lo:F&&F.targetLow,med:F&&F.targetMedian}:{cons:F&&F.analysts,targets:[],grades:[],history:[],insiders:[],hi:F&&F.targetHigh,lo:F&&F.targetLow,med:F&&F.targetMedian};}
   else x.an=mockAnalyst(x);
+  if(LIVE&&L&&L.afm&&L.afm.length)x.an.insiders=[...(x.an.insiders||[]),...L.afm];
   const A=x.an;A.targets=(A.targets||[]).slice().sort((a,b)=>a.date<b.date?1:-1);A.grades=(A.grades||[]).slice().sort((a,b)=>a.date<b.date?1:-1);A.history=(A.history||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
   A.insiders=(A.insiders||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
   if(!A.cons&&A.history.length)A.cons=A.history.at(-1);
@@ -286,7 +287,7 @@ function renderAnalysts(){const b=base();const cov=STK.filter(x=>x.an.score!=nul
   const xs=STK.filter(x=>x.an.hi&&x.an.lo).sort((a,b2)=>b2.an.up-a.an.up);const rel=v=>v;
   C('chTargets').setOption({textStyle:b.text,grid:{left:8,right:60,top:24,bottom:24,containLabel:true},
    tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},formatter:p=>{const x=xs[p[0].dataIndex];return `<b>${x.n}</b><br>Koers ${px(x)}<br>Laagste doel ${px(x,x.an.lo)} (${pctS(x.an.lo/x.p-1)})<br>Gemiddeld ${px(x,x.fv)} (${pctS(x.an.up)})<br>Hoogste doel ${px(x,x.an.hi)} (${pctS(x.an.hi/x.p-1)})`;}},
-   xAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>pctS(v/100,0)}},yAxis:{type:'category',inverse:true,data:xs.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600}},
+   xAxis:{type:'value',splitNumber:NARROW()?3:5,...b.ax,axisLabel:{...b.ax.axisLabel,hideOverlap:true,formatter:v=>pctS(v/100,0)}},yAxis:{type:'category',inverse:true,data:xs.map(x=>x.t),...b.ax,splitLine:{show:false},axisLabel:{color:b.ink2,fontWeight:600}},
    series:[{name:'Bereik koersdoelen',type:'custom',data:xs.map((x,i)=>[+((x.an.lo/x.p-1)*100).toFixed(1),+((x.an.hi/x.p-1)*100).toFixed(1),i]),encode:{x:[0,1],y:2},
      renderItem:(params,api)=>{const a=api.coord([api.value(0),api.value(2)]),z=api.coord([api.value(1),api.value(2)]);const h=8;return {type:'rect',shape:{x:a[0],y:a[1]-h/2,width:Math.max(2,z[0]-a[0]),height:h,r:4},style:{fill:hexA(b.acc,.3)}};},z:2},
     {name:'Gemiddeld doel',type:'scatter',symbol:'diamond',symbolSize:13,data:xs.map(x=>+(x.an.up*100).toFixed(1)),itemStyle:{color:b.acc,borderColor:b.sf,borderWidth:1.5},z:5,
@@ -325,8 +326,9 @@ function renderAnalysts(){const b=base();const cov=STK.filter(x=>x.an.score!=nul
    tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>eur(Math.abs(v))},
    xAxis:{type:'category',data:ks.map(q=>MONTHS[q%12]+(q%12===0?" '"+String(Math.floor(q/12)).slice(2):'')),...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>(v<0?'−':'')+'€ '+nf0.format(Math.abs(v)/1000)+'k'}},
    series:[{name:'Aankopen',type:'bar',stack:'i',data:ks.map(q=>Math.round(im[q]?.b||0)),itemStyle:{color:b.good,borderRadius:[3,3,0,0]}},{name:'Verkopen',type:'bar',stack:'i',data:ks.map(q=>-Math.round(im[q]?.s||0)),itemStyle:{color:b.bad,borderRadius:[0,0,3,3]}}]});
+  const st=LIVE&&LIVE.afm;$('#insSrc').textContent=!LIVE?'Voorbeelddata. Live komen Nederlandse meldingen uit het AFM-register (MAR 19) en Amerikaanse uit SEC-meldingen via FMP.':st&&st.ok?`AFM-register (MAR 19): ${nf0.format(st.rows)} meldingen gelezen, ${st.matched} over jouw Nederlandse aandelen. Amerikaanse aandelen via SEC-meldingen (FMP). Shell, Unilever en buitenlandse aandelen vallen onder andere toezichthouders.`:`AFM-register niet bereikbaar${st&&st.error?' ('+st.error+')':''}. Amerikaanse aandelen via SEC-meldingen (FMP).`;
   $('#tblIns').innerHTML=insAll.length?`<thead><tr><th>Datum</th><th>Aandeel</th><th>Insider</th><th>Soort</th><th class="n">Aantal</th><th class="n">Prijs</th><th class="n">Waarde</th></tr></thead><tbody>`+
-   insAll.sort((a,b2)=>a.date<b2.date?1:-1).slice(0,40).map(t=>{const c=txCode(t.type);return `<tr><td class="num" title="Gemeld ${t.filed?fdate(D(t.filed)):'–'}">${fdate(D(t.date))}</td><td><div class="tk">${logo(t.x,22)}<b>${t.x.t}</b></div></td><td>${t.name||'–'}${t.role?`<span class="sub2">${roleNL(t.role)}</span>`:''}</td>
+   insAll.sort((a,b2)=>a.date<b2.date?1:-1).slice(0,40).map(t=>{const c=txCode(t.type);return `<tr><td class="num" title="Gemeld ${t.filed?fdate(D(t.filed)):'–'}">${fdate(D(t.date))}</td><td><div class="tk">${logo(t.x,22)}<b>${t.x.t}</b></div></td><td>${t.name||'–'}<span class="sub2">${[t.role?roleNL(t.role):'',t.source==='AFM'?'AFM':'',t.option?'optieprogramma':''].filter(Boolean).join(' · ')}</span></td>
     <td><span class="pill ${c==='P'?'good':c==='S'?'bad':'neu'}">${TXT[c]||t.type||'–'}</span></td><td class="n num">${nf0.format(t.shares)}</td><td class="n num">${t.price>0?px(t.x,t.price):'–'}</td><td class="n num"><b>${t.price>0?eur(t.shares*t.price*fxAt(t.x.ccy,NW-1)):'–'}</b></td></tr>`;}).join('')+'</tbody>':'<tbody><tr><td class="note">Geen insidertransacties gevonden.</td></tr></tbody>';}
 
 /* ============ chart infra ============ */
@@ -337,7 +339,7 @@ function base(){const ink=css('--ink'),ink2=css('--ink-2'),ink3=css('--ink-3'),l
     cat:[1,2,3,4,5,6,7,8].map(i=>css('--c'+i)),
     text:{color:ink2,fontFamily:'Inter, system-ui, sans-serif',fontSize:12},
     tip:{backgroundColor:sf,borderColor:line,borderWidth:1,textStyle:{color:ink,fontSize:12.5,fontFamily:'Inter, system-ui, sans-serif'},extraCssText:'box-shadow:0 6px 24px rgba(0,0,0,.14);border-radius:8px;'},
-    ax:{axisLine:{lineStyle:{color:line}},axisTick:{show:false},axisLabel:{color:ink3,fontSize:11.5},splitLine:{lineStyle:{color:line,opacity:.7}}}};}
+    ax:{axisLine:{lineStyle:{color:line}},axisTick:{show:false},axisLabel:{color:ink3,fontSize:11.5,hideOverlap:true},splitLine:{lineStyle:{color:line,opacity:.7}}}};}
 const mix=(c,a)=>`color-mix(in srgb, ${c} ${Math.round(a*100)}%, transparent)`;
 function hexA(hex,a){const h=hex.replace('#','');const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
 const SECCOL={}; ['Technologie','Financiën','Consumentengoederen','Communicatie','Energie','Zakelijke diensten','Gezondheidszorg'].forEach((s,i)=>SECCOL[s]=i);
@@ -387,7 +389,7 @@ function renderValue(){const b=base(),c=C('chValue');const n=ovRange||NW;const i
     tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'line',lineStyle:{color:b.ink3}},valueFormatter:v=>ovMode==='value'?eur(v):pctS(v/100)},
     xAxis:{type:'time',...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:yfmt},scale:ovMode!=='value'},series});}
 function radarOpt(b,showMarket=true,big=false){return {textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${p.name}</b><br>`+AXES.map((a,k)=>`${a}: ${nf2.format(p.value[k])} / 6`).join('<br>')},
-  radar:{indicator:AXES.map(a=>({name:a,max:6})),radius:big?'68%':'64%',splitNumber:6,shape:'polygon',axisName:{color:b.ink2,fontSize:big?12.5:11.5,fontWeight:600},
+  radar:{indicator:AXES.map(a=>({name:a,max:6})),radius:NARROW()?'56%':big?'68%':'64%',splitNumber:6,shape:'polygon',axisName:{color:b.ink2,fontSize:big?12.5:11.5,fontWeight:600},
     splitLine:{lineStyle:{color:b.line}},splitArea:{areaStyle:{color:['transparent']}},axisLine:{lineStyle:{color:b.line}}},
   series:[{type:'radar',symbol:'circle',symbolSize:big?7:5,data:[
     ...(showMarket?[{name:'AEX',value:MARKET.s,lineStyle:{color:b.mkt,type:'dashed',width:1.5},itemStyle:{color:b.mkt},areaStyle:{opacity:0}}]:[]),
@@ -447,24 +449,30 @@ function renderSankey(){const b=base();const nodes=[{name:'Portefeuille'}],links
   const bySec={};OPEN.forEach(x=>{(bySec[x.sec]=bySec[x.sec]||[]).push(x);});
   Object.entries(bySec).sort((a,b)=>b[1].reduce((s,x)=>s+x.w,0)-a[1].reduce((s,x)=>s+x.w,0)).forEach(([sec,xs])=>{const col=b.cat[SECCOL[sec]%8];add(sec,col);
     links.push({source:'Portefeuille',target:sec,value:+(xs.reduce((s,x)=>s+x.w,0)*100).toFixed(2)});
+    if(NARROW()){xs.forEach(y=>{add(y.t,col);links.push({source:sec,target:y.t,value:+(y.w*100).toFixed(2)});});return;}
     const byInd={};xs.forEach(x=>{(byInd[x.ind]=byInd[x.ind]||[]).push(x);});
     Object.entries(byInd).forEach(([ind,ys])=>{add(ind,col);links.push({source:sec,target:ind,value:+(ys.reduce((s,x)=>s+x.w,0)*100).toFixed(2)});
       ys.forEach(y=>{add(y.t,col);links.push({source:ind,target:y.t,value:+(y.w*100).toFixed(2)});});});});
   nodes[0].itemStyle={color:b.acc};
   C('chSankey').setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>p.dataType==='edge'?`${p.data.source} → ${p.data.target}: ${nf2.format(p.data.value)}%`:`<b>${p.name}</b>`},
-   series:[{type:'sankey',left:4,right:150,layoutIterations:0,top:8,bottom:8,nodeWidth:10,nodeGap:9,nodeAlign:'justify',draggable:false,data:nodes,links,
+   series:[{type:'sankey',left:4,right:NARROW()?96:150,layoutIterations:0,top:8,bottom:8,nodeWidth:10,nodeGap:9,nodeAlign:'justify',draggable:false,data:nodes,links,
     lineStyle:{color:'source',opacity:.28,curveness:.5},emphasis:{focus:'adjacency'},
-    label:{color:b.ink,fontSize:12,formatter:p=>{const v=links.filter(l=>l.target===p.name).reduce((s,l)=>s+l.value,0);return p.name==='Portefeuille'?'':`${p.name}  {m|${nf2.format(v).replace(/,?0+$/,'')}%}`;},rich:{m:{color:b.ink3,fontSize:11}}}}]});}
-function donut(id,data){const b=base();C(id).setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`${p.name}: ${pct(p.value/100)}`},
-  legend:{orient:'vertical',right:0,top:'middle',textStyle:{color:b.ink2,fontSize:12},icon:'roundRect',itemWidth:10,itemHeight:10,formatter:n=>`${n}  ${pct(data.find(d=>d.name===n).value/100)}`},
-  series:[{type:'pie',radius:['52%','78%'],center:['30%','50%'],padAngle:1.5,itemStyle:{borderRadius:4,borderColor:b.sf,borderWidth:2},label:{show:false},data:data.map((d,i)=>({...d,itemStyle:{color:b.cat[d.ci??i]}}))}]});}
+    label:{color:b.ink,fontSize:NARROW()?10.5:12,formatter:p=>{const v=links.filter(l=>l.target===p.name).reduce((s,l)=>s+l.value,0);return p.name==='Portefeuille'?'':`${p.name}  {m|${nf2.format(v).replace(/,?0+$/,'')}%}`;},rich:{m:{color:b.ink3,fontSize:11}}}}]});}
+const NARROW=()=>window.innerWidth<640;
+// op smalle schermen staat de legenda onder de taart, zodat niets overlapt
+function donut(id,data){const b=base();const el=document.getElementById(id);const nar=el.clientWidth<480;
+  if(nar){el.style.height=(230+Math.ceil(data.length/2)*24)+'px';}else el.style.height='';
+  C(id).setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`${p.name}: ${pct(p.value/100)}`},
+  legend:nar?{orient:'horizontal',left:'center',bottom:0,itemGap:12,textStyle:{color:b.ink2,fontSize:11.5},icon:'roundRect',itemWidth:10,itemHeight:10,formatter:n=>`${n}  ${pct(data.find(d=>d.name===n).value/100)}`}
+   :{orient:'vertical',right:0,top:'middle',textStyle:{color:b.ink2,fontSize:12},icon:'roundRect',itemWidth:10,itemHeight:10,formatter:n=>`${n}  ${pct(data.find(d=>d.name===n).value/100)}`},
+  series:[{type:'pie',radius:nar?[56,88]:['52%','78%'],center:nar?['50%',98]:['30%','50%'],padAngle:1.5,itemStyle:{borderRadius:4,borderColor:b.sf,borderWidth:2},label:{show:false},data:data.map((d,i)=>({...d,itemStyle:{color:b.cat[d.ci??i]}}))}]});}
 function renderGeo(){const R=['Europa','Noord-Amerika','Azië-Pacific','Overig'];const v=R.map((_,k)=>OPEN.reduce((a,x)=>a+x.w*x.geo[k],0));
   donut('chGeo',R.map((n,k)=>({name:n,value:+v[k].toFixed(1)})));
   const ccy={};OPEN.forEach(x=>ccy[x.ccy]=(ccy[x.ccy]||0)+x.w*100);const CNm={EUR:'Euro',USD:'Amerikaanse dollar',CHF:'Zwitserse frank',DKK:'Deense kroon'};donut('chCcy',Object.entries(ccy).sort((a,b)=>b[1]-a[1]).map(([n,v],i)=>({name:CNm[n]||n,value:+v.toFixed(1),ci:i})));}
 function renderCorr(){const b=base();const xs=[...OPEN].sort((a,b)=>a.sec.localeCompare(b.sec)||b.w-a.w);const n=xs.length;const R=xs.map(x=>x.ret.slice(R0));const data=[];const pairs=[];
   for(let i=0;i<n;i++)for(let j=0;j<i;j++){const c=corr(R[i],R[j]);data.push([j,i,+c.toFixed(2)]);pairs.push([xs[i].t,xs[j].t,c]);}
   C('chCorr').setOption({textStyle:b.text,grid:{left:8,right:8,top:8,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${xs[p.value[1]].t} / ${xs[p.value[0]].t}</b><br>Correlatie: ${nf2.format(p.value[2])}`},
-   xAxis:{type:'category',data:xs.map(x=>x.t),max:n-2,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,rotate:45,interval:0}},
+   xAxis:{type:'category',data:xs.map(x=>x.t),max:n-2,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,rotate:NARROW()?90:45,interval:0,fontSize:NARROW()?8.5:11.5}},
    yAxis:{type:'category',data:xs.map(x=>x.t),inverse:true,min:1,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0}},
    visualMap:{min:-1,max:1,show:false,inRange:{color:[css('--div-neg'),css('--div-mid'),css('--div-pos')]}},
    series:[{type:'heatmap',data,itemStyle:{borderColor:b.sf,borderWidth:2,borderRadius:3},label:{show:window.innerWidth>700,fontSize:10,color:b.ink,formatter:p=>nf2.format(p.value[2]).replace('0,',',')}}]});
@@ -546,11 +554,11 @@ function renderWater(){const b=base();const steps=[['Koers',T.priceGain],['Valut
   const cats=[...steps.map(s=>s[0]),'Totaal'];baseA.push(0);pos_.push('-');neg.push('-');const tot=cats.map((_,i)=>i===cats.length-1?+T.total.toFixed(0):'-');
   const vals=[...steps.map(s=>s[1]),T.total];
   C('chWater').setOption({textStyle:b.text,grid:{left:8,right:8,top:28,bottom:8,containLabel:true},tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},formatter:p=>`<b>${p[0].name}</b>: ${eurS(vals[p[0].dataIndex])}`},
-   xAxis:{type:'category',data:cats,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0,color:b.ink2}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
+   xAxis:{type:'category',data:cats,...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0,color:b.ink2,rotate:NARROW()?50:0,fontSize:NARROW()?10.5:11.5}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>'€ '+nf0.format(v/1000)+'k'}},
    series:[{type:'bar',stack:'w',data:baseA,itemStyle:{color:'transparent'},emphasis:{disabled:true},silent:true},
-    {type:'bar',stack:'w',data:pos_,barWidth:'56%',itemStyle:{color:b.good,borderRadius:3},label:{show:true,position:'top',color:b.ink2,fontSize:11.5,formatter:p=>eurS(p.value)}},
-    {type:'bar',stack:'w',data:neg,itemStyle:{color:b.bad,borderRadius:3},label:{show:true,position:'bottom',color:b.ink2,fontSize:11.5,formatter:p=>eur(-p.value)}},
-    {type:'bar',stack:'w',data:tot,itemStyle:{color:b.acc,borderRadius:3},label:{show:true,position:'top',color:b.ink,fontWeight:600,fontSize:12,formatter:p=>eurS(p.value)}}]});
+    {type:'bar',stack:'w',data:pos_,barWidth:'56%',itemStyle:{color:b.good,borderRadius:3},label:{show:true,position:'top',color:b.ink2,fontSize:NARROW()?9.5:11.5,formatter:p=>NARROW()?eurS(Math.round(p.value/1000))+'k':eurS(p.value)}},
+    {type:'bar',stack:'w',data:neg,itemStyle:{color:b.bad,borderRadius:3},label:{show:true,position:'bottom',color:b.ink2,fontSize:NARROW()?9.5:11.5,formatter:p=>NARROW()?eur(-Math.round(p.value/1000))+'k':eur(-p.value)}},
+    {type:'bar',stack:'w',data:tot,itemStyle:{color:b.acc,borderRadius:3},label:{show:true,position:'top',color:b.ink,fontWeight:600,fontSize:NARROW()?10:12,formatter:p=>NARROW()?eurS(Math.round(p.value/1000))+'k':eurS(p.value)}}]});
   const yrs=(TODAY-START)/(365.25*DAY);
   $('#tblRet').innerHTML='<tbody>'+[
    ['Waarde nu',eur(TOTAL)],['Netto inleg',eur(T.invested)],['Totaal resultaat',`<span class="${cls(T.total)}">${eurS(T.total)}</span>`],
@@ -736,7 +744,7 @@ function renderBench(){const b=base();
   const yret=(arr,y)=>{const a=widx(Date.UTC(y,0,1)),z=y===cy?NW-1:widx(Date.UTC(y+1,0,1));return arr[z]/arr[Math.max(a,y===2019?1:a)]-1;};
   C('chYears').setOption({textStyle:b.text,legend:{top:0,left:0,textStyle:{color:b.ink2},icon:'roundRect',itemWidth:10,itemHeight:10},grid:{left:8,right:8,top:34,bottom:8,containLabel:true},
    tooltip:{...b.tip,trigger:'axis',axisPointer:{type:'shadow',shadowStyle:{color:hexA(b.ink3,.08)}},valueFormatter:v=>pctS(v/100)},
-   xAxis:{type:'category',data:years.map(y=>y===cy?y+' t/m nu':String(y)),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
+   xAxis:{type:'category',data:years.map(y=>NARROW()?"'"+String(y).slice(2):y===cy?y+' t/m nu':String(y)),...b.ax,splitLine:{show:false},axisLabel:{...b.ax.axisLabel,interval:0}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>v+'%'}},
    series:[{name:'Portefeuille',type:'bar',barGap:'10%',data:years.map(y=>+(yret(SER.idx,y)*100).toFixed(1)),itemStyle:{color:b.acc,borderRadius:3}},{name:bn,type:'bar',data:years.map(y=>+(yret(S.B,y)*100).toFixed(1)),itemStyle:{color:b.mkt,borderRadius:3}}]});
   // sectorweging vs AEX
   const pw={};OPEN.forEach(x=>pw[x.sec]=(pw[x.sec]||0)+x.w*100);const secs=[...new Set([...Object.keys(AEXW),...Object.keys(pw)])].map(s=>[s,(pw[s]||0)-(AEXW[s]||0)]).sort((a,b)=>a[1]-b[1]);
@@ -841,9 +849,10 @@ function renderSpread(){const b=base();const {c,via}=lookThrough();const tot=Obj
   const RC={'Europa':0,'Noord-Amerika':1,'Azië-Pacific':2,'Opkomende markten':3,'Overig ontwikkeld':4};
   const sun=Object.entries(regs).sort((a,b)=>b[1].reduce((s,x)=>s+x[1],0)-a[1].reduce((s,x)=>s+x[1],0)).map(([r,ls])=>({name:r,itemStyle:{color:b.cat[RC[r]??5]},
     children:ls.sort((a,b)=>b[1]-a[1]).map(([land,v],k)=>({name:land,value:+(v/tot*100).toFixed(2),itemStyle:{color:hexA(b.cat[RC[r]??5],Math.max(.35,.95-k*.09))}}))}));
+  document.getElementById('chSun').style.height=NARROW()?'340px':'480px';
   C('chSun').setOption({textStyle:b.text,tooltip:{...b.tip,trigger:'item',formatter:p=>`<b>${p.name}</b>: ${pct(p.value/100)}`+(via[p.name]?`<br>Direct ${eur(via[p.name].d)} · via ETF's ${eur(via[p.name].e)}`:'')},
    series:[{type:'sunburst',data:sun,radius:['18%','94%'],sort:null,nodeClick:false,itemStyle:{borderColor:b.sf,borderWidth:2,borderRadius:4},
-    levels:[{},{r0:'18%',r:'52%',label:{color:'#fff',fontWeight:600,fontSize:12,rotate:0,minAngle:14,formatter:p=>p.name+'\n'+pct(p.value/100,0)}},{r0:'53%',r:'94%',label:{color:b.ink,fontSize:11,minAngle:7,align:'right',formatter:p=>p.name}}]}],
+    levels:[{},{r0:'18%',r:'52%',label:{color:'#fff',fontWeight:600,fontSize:NARROW()?10:12,rotate:0,minAngle:NARROW()?30:14,formatter:p=>p.name+'\n'+pct(p.value/100,0)}},{r0:'53%',r:'94%',label:{show:!NARROW(),color:b.ink,fontSize:11,minAngle:7,align:'right',formatter:p=>p.name}}]}],
    graphic:[{type:'text',left:'center',top:'middle',style:{text:Object.keys(c).length+'\nlanden',fill:b.ink2,font:'600 13px Inter',align:'center'}}]});
   // beleggingstype
   const sv=STK.reduce((a,x)=>a+x.val,0),ev=ETFS.reduce((a,x)=>a+x.val,0);const lo=OPEN_OPT.filter(o=>o.val>0).reduce((a,o)=>a+o.val,0),so=-OPEN_OPT.filter(o=>o.val<0).reduce((a,o)=>a+o.val,0);
@@ -920,7 +929,7 @@ $('#calPrev').onclick=()=>{const d=new Date(calM);calM=Date.UTC(d.getUTCFullYear
 $('#calNext').onclick=()=>{const d=new Date(calM);calM=Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1);renderCal();};
 $('#csvBtn').onclick=e=>{const btn=e.currentTarget;const done=()=>{btn.textContent='Gekopieerd';setTimeout(()=>btn.textContent='Kopieer als CSV',1600);};
   try{navigator.clipboard.writeText(reportCSV).then(done,()=>{btn.textContent='Kopiëren niet toegestaan';});}catch(_){btn.textContent='Kopiëren niet toegestaan';}};
-let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>Object.values(charts).forEach(c=>c.resize()),120);});
+let rz,wasN=NARROW();window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(NARROW()!==wasN){wasN=NARROW();show();}else Object.values(charts).forEach(c=>c.resize());},150);});
 // re-render on theme change so chart colors follow tokens
 const rerender=()=>{show();const open=!$('#drawer').hidden;};
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rerender);}catch(_){}

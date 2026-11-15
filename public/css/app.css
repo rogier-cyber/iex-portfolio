@@ -255,3 +255,14 @@ footer.site b{color:var(--ink-2);font-weight:600}
 .feedlist{display:flex;flex-direction:column;max-height:560px;overflow:auto}
 .feed{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .feed small{display:block;color:var(--ink-3);font-size:12px;margin-top:3px}
+/* mobiel: meer ruimte voor grafieken */
+@media (max-width:640px){
+  .panel{padding:14px 12px}
+  .tw{margin-inline:-12px;padding-inline:12px}
+  .chart{height:280px}
+  .panel header{flex-wrap:wrap;gap:10px}
+  .seg{max-width:100%;overflow-x:auto;flex-wrap:nowrap}
+  .seg.segwrap{flex-wrap:wrap}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hero{flex-wrap:wrap}
+}

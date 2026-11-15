@@ -28,6 +28,11 @@ globalThis.fetch = async (u) => {
       : path === "grades-news" ? [{ publishedDate: "2026-10-20T10:00:00.000Z", gradingCompany: "Testbank", previousGrade: "Hold", newGrade: "Buy", action: "upgrade" }]
       : path === "grades-historical" ? [{ date: "2026-11-01", analystRatingsStrongBuy: 3, analystRatingsBuy: 10, analystRatingsHold: 5, analystRatingsSell: 1, analystRatingsStrongSell: 0 }]
       : path === "insider-trading/search" ? [{ transactionDate: "2026-10-01", filingDate: "2026-10-03", reportingName: "Test Persoon", typeOfOwner: "director", transactionType: "S-Sale", securitiesTransacted: 1000, price: 400, securitiesOwned: 5000 }] : [];
+  } else if (url.hostname === "www.afm.nl") {
+    const csv = "Transactiedatum;Uitgevende instelling;Meldingsplichtige;Nauw gelieerd aan;Positie;Type instrument;ISIN;Aard transactie;Soort transactie;Aandelenoptie programma;Plaats van handel;Prijs;Aantal;Eenheid\r\n" +
+      "12-11-2026;ASML Holding N.V.;Test A.;;CEO;Gewoon aandeel;NL0010273215;Verwerving;Aankoop;Nee;XAMS;905,20;1.000,00;EUR\r\n" +
+      "03-10-2026;ING Groep N.V.;Test B.;;Board member;Gewoon aandeel;NL0011821202;Vervreemding;Verkoop;Nee;XAMS;21,10;5.000,00;EUR\r\n";
+    return { ok: true, status: 200, arrayBuffer: async () => new TextEncoder().encode(csv).buffer, json: async () => ({}) };
   } else throw new Error("unexpected host " + url.hostname);
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 };
