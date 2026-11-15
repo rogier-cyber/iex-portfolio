@@ -1,0 +1,15 @@
+{
+  "name": "iex-portfolio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portefeuilletool voor IEX.nl: visualisaties en datamodel (fase 1, voorbeelddata).",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "echarts": "5.5.0"
+  }
+}

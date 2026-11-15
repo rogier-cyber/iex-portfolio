@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Portefeuille Kompas</title>
+<meta name="description" content="Portefeuilletool voor IEX.nl, prototype op voorbeelddata.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/vendor/echarts.min.js" defer></script>
+<script type="module" src="/js/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="id">
+      <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--accent)"/><polygon points="17,6 27.5,13.6 23.5,26 10.5,26 6.5,13.6" fill="none" stroke="var(--accent-ink)" stroke-width="1.6" opacity=".55"/><polygon points="17,9.5 25,14.5 21.8,23.5 12.6,24 9.6,15" fill="var(--accent-ink)"/></svg>
+      <div>
+        <h1>Portefeuille Kompas</h1>
+        <div class="sub">Voorbeeldportefeuille "Lange termijn" · koersen t/m vr 13 nov 2026</div>
+      </div>
+      <span class="spacer"></span>
+      <span class="badge">Prototype · voorbeelddata</span>
+    </div>
+    <nav class="tabs" aria-label="Weergaven">
+      <a href="#overzicht">Overzicht</a>
+      <a href="#analyse">Analyse</a>
+      <a href="#waardering">Waardering</a>
+      <a href="#dividend">Dividend</a>
+      <a href="#rendement">Rendement</a>
+      <a href="#nieuws">Nieuws</a>
+      <a href="#datamodel">Datamodel</a>
+    </nav>
+  </div>
+</header>
+
+<main><div class="wrap">
+
+<!-- OVERZICHT -->
+<section class="view" id="v-overzicht">
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header>
+        <div class="t hero" id="heroStats"></div>
+      </header>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-bottom:6px">
+        <div class="seg" id="ovMode"><button aria-pressed="true" data-v="value">Waarde vs inleg</button><button aria-pressed="false" data-v="perf">Rendement vs AEX</button></div>
+        <div class="seg" id="ovRange"><button aria-pressed="false" data-v="52">1J</button><button aria-pressed="false" data-v="156">3J</button><button aria-pressed="false" data-v="260">5J</button><button aria-pressed="true" data-v="0">Alles</button></div>
+      </div>
+      <div class="chart" id="chValue"></div>
+      <div class="legend" id="lgValue"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h3>Kompasscore</h3><p>Vijf kenmerken, elk 0 tot 6, gewogen naar positiegrootte. De stippellijn is de AEX.</p></div></header>
+      <div class="chart" id="chRadarOv" style="height:270px"></div>
+      <p id="kompasLine" style="margin:4px 0 0;font-size:13.5px;color:var(--ink-2)"></p>
+    </div>
+  </div>
+  <div class="kpis" id="ovKpis"></div>
+  <div class="panel">
+    <header><div class="t"><h2>Posities</h2><p>Klik op een positie voor details.</p></div><span class="badge" id="posCount"></span></header>
+    <div class="tw"><table id="tblHoldings"></table></div>
+  </div>
+</section>
+
+<!-- ANALYSE -->
+<section class="view" id="v-analyse" hidden>
+  <div class="panel">
+    <header><div class="t"><h2>Kompasscore per kenmerk</h2><p>Kies een kenmerk om te zien welke posities de score omhoog trekken en welke hem drukken.</p></div></header>
+    <div class="grid g-1-1">
+      <div class="chart" id="chRadar" style="height:330px"></div>
+      <div>
+        <div class="axis-pick seg" id="axisPick"></div>
+        <p class="axisdesc" id="axisDesc"></p>
+        <div class="lift"><div><h4>Trekt omhoog</h4><div id="liftUp"></div></div><div><h4>Drukt</h4><div id="liftDown"></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Posities op één lijn</h2><p id="stripDesc"></p></div><div class="seg" id="stripPick"></div></header>
+    <div class="chart" id="chStrip" style="height:260px"></div>
+    <div class="legend"><span><i style="background:var(--good)"></i>Beter dan AEX</span><span><i style="background:var(--bad)"></i>Zwakker dan AEX</span><span><i class="line" style="background:var(--accent)"></i>Portefeuille (gewogen)</span><span><i class="dash"></i>AEX</span><span>Bolgrootte = gewicht</span></div>
+    <p class="note" id="stripNote"></p>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Spreiding</h2><p>Van sector naar branche naar positie, op basis van huidige waarde.</p></div></header>
+    <div class="chart tall" id="chSankey"></div>
+    <div class="grid g-2" style="margin-top:14px">
+      <div><h3>Omzet per regio</h3><p class="note" style="margin-top:2px">Waar de bedrijven hun omzet halen, niet waar ze genoteerd zijn.</p><div class="chart short" id="chGeo"></div></div>
+      <div><h3>Valuta</h3><p class="note" style="margin-top:2px">Noteringsvaluta van de posities.</p><div class="chart short" id="chCcy"></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Samenhang</h2><p>Correlatie van weekrendementen over drie jaar. Oranje bewegen samen, blauw bewegen tegengesteld, grijs onafhankelijk.</p></div></header>
+    <div class="grid g-3-1">
+      <div class="chart tall" id="chCorr"></div>
+      <div>
+        <h3 style="margin-bottom:8px">Bewegen het meest samen</h3><div id="corrTop"></div>
+        <h3 style="margin:16px 0 8px">Spreiden het risico het best</h3><div id="corrLow"></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Risico</h2><p>Gemeten over de laatste drie jaar, vergeleken met de AEX.</p></div></header>
+    <div class="gauge" id="riskGauge"></div>
+    <div class="risk" id="riskTiles"></div>
+    <h3 style="margin:20px 0 4px">Beweeglijkheid per positie</h3>
+    <p class="note" style="margin:0 0 6px">Geannualiseerde volatiliteit van weekrendementen.</p>
+    <div class="chart" id="chVol" style="height:440px"></div>
+  </div>
+</section>
+
+<!-- WAARDERING -->
+<section class="view" id="v-waardering" hidden>
+  <div class="panel">
+    <header><div class="t hero" id="valHero"></div></header>
+    <div class="kpis" id="valKpis"></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Koers ten opzichte van reële waarde</h2><p>Links van nul noteert de positie onder de geschatte reële waarde, rechts erboven. De reële waarden zijn voorbeeldschattingen.</p></div></header>
+    <div class="chart" id="chVal" style="height:470px"></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Per positie</h2></div></header>
+    <div class="tw"><table id="tblVal"></table></div>
+  </div>
+</section>
+
+<!-- DIVIDEND -->
+<section class="view" id="v-dividend" hidden>
+  <div class="panel"><header><div class="t hero" id="divHero"></div></header></div>
+  <div class="panel">
+    <header><div class="t"><h2>Dividend per maand</h2><p>Ontvangen netto dividend en de verwachting voor de komende twaalf maanden, na bronbelasting.</p></div><div class="seg" id="divGran"><button aria-pressed="true" data-v="m">Per maand</button><button aria-pressed="false" data-v="y">Per jaar</button></div></header>
+    <div class="chart" id="chDiv"></div>
+    <div class="legend"><span><i style="background:var(--accent)"></i>Ontvangen</span><span><i style="background:color-mix(in srgb,var(--accent) 38%,var(--surface))"></i>Verwacht</span></div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Wie levert het inkomen</h2><p>Verwacht netto dividend komende 12 maanden per positie.</p></div></header>
+      <div class="chart" id="chDivContrib" style="height:380px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Rendement en rendement op inleg</h2><p>Huidig dividendrendement tegenover rendement op je aankoopprijs.</p></div></header>
+      <div class="tw"><table id="tblYoc"></table></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata. Data na vandaag zijn schattingen op basis van het vorige jaar.</p></div><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
+    <div class="cal" id="cal"></div>
+    <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span></div>
+  </div>
+</section>
+
+<!-- RENDEMENT -->
+<section class="view" id="v-rendement" hidden>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Opbouw van het rendement</h2><p>Sinds de eerste aankoop op 7 januari 2019, in euro.</p></div></header>
+      <div class="chart" id="chWater" style="height:340px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Kerncijfers</h2></div></header>
+      <div class="tw"><table id="tblRet"></table></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Bijdrage per positie</h2><p>Totaal resultaat in euro: koers, valuta, gerealiseerd en netto dividend. Verkochte posities tellen mee.</p></div></header>
+    <div class="chart" id="chContrib" style="height:460px"></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Rendementsrapport</h2><button class="badge" style="border:0;cursor:pointer" id="csvBtn" title="Kopieer de tabel als CSV">Kopieer als CSV</button></header>
+    <div class="tw"><table id="tblReport"></table></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Transacties</h2><p id="txCount"></p></div><div class="seg" id="txPick"><button aria-pressed="true" data-v="ALL">Alles</button><button aria-pressed="false" data-v="BUY">Koop</button><button aria-pressed="false" data-v="SELL">Verkoop</button><button aria-pressed="false" data-v="DIV">Dividend</button></div></header>
+    <div class="tw" style="max-height:520px;overflow-y:auto"><table id="tblTx"></table></div>
+  </div>
+</section>
+
+<!-- NIEUWS -->
+<section class="view" id="v-nieuws" hidden>
+  <div class="panel">
+    <header><div class="t"><h2>Nieuws over je posities</h2><p>Voorbeeldberichten om de weergave te tonen. In de echte versie komt hier de IEX-redactie en marktdata per positie.</p></div></header>
+    <div class="news"><div class="filters" id="newsFilters"></div><div id="newsList"></div></div>
+  </div>
+</section>
+
+<!-- DATAMODEL -->
+<section class="view" id="v-datamodel" hidden>
+  <div class="panel">
+    <header><div class="t"><h2>Datamodel</h2><p>Alle cijfers in dit prototype worden afgeleid van transacties, koersen, valutakoersen en dividendaankondigingen. Alleen die bronnen worden opgeslagen; posities, rendement en risico worden berekend. Een brokerkoppeling levert later dezelfde transacties aan.</p></div></header>
+    <div class="ent" id="ents"></div>
+  </div>
+</section>
+
+</div></main>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Positiedetails"></aside>
+</body>
+</html>

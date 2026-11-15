@@ -1,0 +1,15 @@
+# Render Blueprint: één Node web service, automatisch gedeployed bij elke push naar main.
+services:
+  - type: web
+    name: iex-portfolio
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
