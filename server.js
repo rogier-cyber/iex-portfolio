@@ -6,6 +6,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMarketData } from "./lib/market-data.js";
+import { probeSources } from "./lib/source-probe.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PUBLIC = resolve(ROOT, "public");
@@ -56,6 +57,12 @@ const server = createServer(async (req, res) => {
   if (path === "/healthz") {
     res.writeHead(200, { "Content-Type": "application/json" });
     return res.end(JSON.stringify({ ok: true, version: process.env.RENDER_GIT_COMMIT || "dev" }));
+  }
+
+  if (path === "/api/bronnentest") {
+    const r = await probeSources();
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end(JSON.stringify(r, null, 2));
   }
 
   if (path === "/api/market") {
