@@ -335,3 +335,8 @@ tr.jrow{cursor:pointer}tr.jrow:hover td{background:color-mix(in srgb,var(--accen
 .kpis.k3 .kpi{padding:10px 12px}
 .kpis.k3 .kpi b{font-size:18px}
 @media (max-width:640px){.kpis.k3{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.kpis.k3 .kpi{padding:8px}.kpis.k3 .kpi span,.kpis.k3 .kpi small{font-size:10.5px}.kpis.k3 .kpi b{font-size:16px}}
+/* merklogo */
+.id h1.brand{margin:0;line-height:0}
+.id h1.brand img{height:44px;width:auto;display:block}
+.id .sub{margin-top:4px}
+@media (max-width:600px){.id h1.brand img{height:32px}}
