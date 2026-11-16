@@ -1264,6 +1264,7 @@ function show(){let h=location.hash.slice(1);const jump=h==='spreiding';if(jump)
   $$('.tabs a').forEach(a=>a.setAttribute('aria-current',a.getAttribute('href')==='#'+cur?'page':'false'));
   Object.keys(charts).forEach(k=>{charts[k].dispose();delete charts[k];});VIEWS[cur]();if(jump)setTimeout(()=>{const el=document.getElementById('spreiding');if(el)el.scrollIntoView({block:'start'});},60);}
 window.addEventListener('hashchange',()=>{show();window.scrollTo(0,0);});
+$('#homeLink').addEventListener('click',e=>{if(location.hash==='#overzicht'||!location.hash){e.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}});
 function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;$$(id+' button').forEach(x=>x.setAttribute('aria-pressed',x===bt));fn(bt.dataset);});}
 segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTaxHero();renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
 $('#bmPick').addEventListener('click',e=>{const bt=e.target.closest('button');if(bt){bmSel=bt.dataset.v;renderBench();}});

@@ -343,3 +343,4 @@ tr.jrow{cursor:pointer}tr.jrow:hover td{background:color-mix(in srgb,var(--accen
 #subLine,#srcBadge{display:none!important}
 #tblIns a{color:var(--accent);text-decoration:none}#tblIns a:hover{text-decoration:underline}
 #spreiding{scroll-margin-top:130px}
+.id h1.brand a{display:inline-block;line-height:0;border-radius:6px}.id h1.brand a:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
