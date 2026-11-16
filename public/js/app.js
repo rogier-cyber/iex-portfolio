@@ -328,7 +328,7 @@ function renderAnalysts(){const b=base();const cov=STK.filter(x=>x.an.score!=nul
    xAxis:{type:'category',data:ks.map(q=>MONTHS[q%12]+(q%12===0?" '"+String(Math.floor(q/12)).slice(2):'')),...b.ax,splitLine:{show:false}},yAxis:{type:'value',...b.ax,axisLabel:{...b.ax.axisLabel,formatter:v=>(v<0?'−':'')+'€ '+nf0.format(Math.abs(v)/1000)+'k'}},
    series:[{name:'Aankopen',type:'bar',stack:'i',data:ks.map(q=>Math.round(im[q]?.b||0)),itemStyle:{color:b.good,borderRadius:[3,3,0,0]}},{name:'Verkopen',type:'bar',stack:'i',data:ks.map(q=>-Math.round(im[q]?.s||0)),itemStyle:{color:b.bad,borderRadius:[0,0,3,3]}}]});
   const srcs=LIVE&&(LIVE.insiderSources||(LIVE.afm?[LIVE.afm]:[]));const srcNL={'AFM MAR 19':'AFM (NL)','SIX SER':'SIX (CH)','AMF BDIF':'AMF (FR)','FSMA':'FSMA (BE)'};
-  $('#insSrc').textContent=!LIVE?'Voorbeelddata. Live komen meldingen uit het AFM-register (NL), de FSMA (België), SIX (Zwitserland), de AMF (Frankrijk) en voor Amerikaanse aandelen uit SEC-meldingen via FMP.':
+  $('#insSrc').textContent=LIVE&&LIVE.insidersPending&&!(LIVE.insiderSources||[]).length?'Europese insidermeldingen (AFM, FSMA, SIX, AMF) worden geladen…':!LIVE?'Voorbeelddata. Live komen meldingen uit het AFM-register (NL), de FSMA (België), SIX (Zwitserland), de AMF (Frankrijk) en voor Amerikaanse aandelen uit SEC-meldingen via FMP.':
    (srcs||[]).map(st=>`${srcNL[st.source]||st.source}: ${st.ok?`${nf0.format(st.rows||0)} meldingen gelezen, ${st.matched||0} over jouw aandelen`:`niet bereikbaar${st.error?' ('+String(st.error).slice(0,80)+')':''}`}`).join(' · ')+'. Amerikaanse aandelen via SEC-meldingen (FMP). AFM en AMF geven datum en melder; aantal en prijs staan in de melding zelf. Duitsland, Denemarken en Londen hebben geen bruikbare openbare export.';
   $('#tblIns').innerHTML=insAll.length?`<thead><tr><th>Datum</th><th>Aandeel</th><th>Insider</th><th>Soort</th><th class="n">Aantal</th><th class="n">Prijs</th><th class="n">Waarde</th></tr></thead><tbody>`+
    insAll.sort((a,b2)=>a.date<b2.date?1:-1).slice(0,40).map(t=>{const c=txCode(t.type);return `<tr><td class="num" title="Gemeld ${t.filed?fdate(D(t.filed)):'–'}">${fdate(D(t.date))}</td><td><div class="tk">${logo(t.x,22)}<b>${t.x.t}</b></div></td><td>${t.url?`<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.name||'Melding')}</a>`:esc(t.name||'–')}<span class="sub2">${[t.role?esc(roleNL(t.role)):'',t.source&&t.source!=='FMP'?esc(t.source):'',t.option?'optieprogramma':''].filter(Boolean).join(' · ')}</span></td>
@@ -1258,7 +1258,7 @@ const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTre
  waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
  belasting:()=>{renderTaxHero();renderTax();},
  opties:renderOptions, analisten:renderAnalysts, coach:renderCoach,
- rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
+ rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews};
 let cur='overzicht';
 function show(){let h=location.hash.slice(1);const jump=h==='spreiding';if(jump)h='analyse';cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
   $$('.tabs a').forEach(a=>a.setAttribute('aria-current',a.getAttribute('href')==='#'+cur?'page':'false'));
@@ -1292,3 +1292,9 @@ function signArrows(root){const w=document.createTreeWalker(root,NodeFilter.SHOW
   ns.forEach(n=>{const m=n.nodeValue.match(SIGNRE);const el=n.parentElement;if(!el.closest('.up,.down'))el.classList.add(m[2]==='+'?'up':'down');n.nodeValue=n.nodeValue.replace(SIGNRE,'$1');});}
 let sgPending=false;new MutationObserver(()=>{if(sgPending)return;sgPending=true;requestAnimationFrame(()=>{sgPending=false;signArrows(document.body);});}).observe(document.body,{childList:true,subtree:true,characterData:false});
 renderSource();show();
+{const b=document.getElementById('boot');if(b){b.classList.add('done');setTimeout(()=>b.remove(),400);}}
+// Europese insidermeldingen komen los binnen (ze laden langer dan de koersen)
+if(LIVE&&LIVE.insidersPending)fetch('/api/insiders').then(r=>r.ok?r.json():null).then(ins=>{if(!ins||!ins.byTicker)return;LIVE.insiderSources=ins.sources;LIVE.afm=ins.sources&&ins.sources[0];LIVE.insidersPending=false;
+  STK.forEach(x=>{const rows=ins.byTicker[x.t];if(!rows||!x.an)return;const A=x.an;A.insiders=[...(A.insiders||[]),...rows].sort((a,b)=>a.date<b.date?1:-1);const fx=fxAt(x.ccy,NW-1);
+    A.insNet=A.insiders.filter(t=>D(t.date)>TODAY-365*DAY&&t.price>0).reduce((a,t)=>a+(txCode(t.type)==='P'?1:txCode(t.type)==='S'?-1:0)*t.shares*t.price*fx,0);});
+  if(cur==='analisten')show();}).catch(()=>{});

@@ -50,7 +50,7 @@ public/index.html             App-shell en weergaven
 public/css/app.css            Design tokens (licht/donker) en layout
 public/js/data/mock-portfolio.js  Brondata: instrumenten, kerncijfers, scores, transacties (voorbeeld)
 public/js/app.js              Berekeningen (posities, IRR, TWR, risico, dividendprognose) en grafieken
-docs/datamodel.md             Datamodel voor fase 2
+docs/datamodel.md             Datamodel voor fase 2 (stond eerst als tab in de app)
 render.yaml                   Render Blueprint
 ```
 

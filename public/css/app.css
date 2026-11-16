@@ -344,3 +344,10 @@ tr.jrow{cursor:pointer}tr.jrow:hover td{background:color-mix(in srgb,var(--accen
 #tblIns a{color:var(--accent);text-decoration:none}#tblIns a:hover{text-decoration:underline}
 #spreiding{scroll-margin-top:130px}
 .id h1.brand a{display:inline-block;line-height:0;border-radius:6px}.id h1.brand a:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+/* laadscherm tot de app klaar is */
+#boot{position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--bg,#0b1a21);transition:opacity .35s}
+#boot.done{opacity:0;pointer-events:none}
+#boot img{height:48px;width:auto}
+#boot i{width:160px;height:3px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--accent,#d9a93b),transparent) 0 0/50% 100% no-repeat,rgba(255,255,255,.08);animation:bootbar 1.1s linear infinite}
+#boot span{font-size:13px;color:var(--ink-3,#8aa)}
+@keyframes bootbar{from{background-position:-100% 0,0 0}to{background-position:200% 0,0 0}}

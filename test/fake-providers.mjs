@@ -48,6 +48,14 @@ globalThis.fetch = async (u) => {
   } else throw new Error("unexpected host " + url.hostname);
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 };
+// FAKE_SERVER=1: start de echte server met deze nagebootste bronnen (insiderbronnen 4 s vertraagd)
+if (process.env.FAKE_SERVER) {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, o) => { if (/afm\.nl|fsma|ser-ag|amf-france/.test(String(u))) await new Promise((r) => setTimeout(r, 4000)); return real(u, o); };
+  process.env.EODHD_API_KEY = "test"; process.env.FMP_API_KEY = "test";
+  await import("../server.js");
+  await new Promise(() => {});
+}
 const data = await loadMarketData("test-key", "test-fmp");
 const fs = await import("node:fs/promises");
 await fs.mkdir(new URL("../public/data/", import.meta.url), { recursive: true });
