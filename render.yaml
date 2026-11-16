@@ -3,7 +3,7 @@ services:
   - type: web
     name: iex-portfolio
     runtime: node
-    plan: free
+    plan: starter   # altijd wakker ($7 per maand); gekozen door Rogier op 2026-11-16
     region: frankfurt
     branch: main
     autoDeploy: true
