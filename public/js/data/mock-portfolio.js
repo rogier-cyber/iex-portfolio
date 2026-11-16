@@ -32,6 +32,8 @@ export const INS=[
   {t:'MC',p0:260,n:'LVMH',isin:'FR0000121014',ex:'Euronext Parijs',sec:'Consumentengoederen',ind:'Luxegoederen',cty:'Frankrijk',ccy:'EUR',p:615.0,fv:690,beta:1.1,f:'staples',iv:.03,al:.0006,s:[3,3,5,5,3],pe:25,g:7,roe:20,de:36,dps:13,dm:[[4,28],[12,4]],dmw:[.55,.45],geo:[32,25,36,7]},
   {t:'NESN',p0:82,n:'Nestlé',isin:'CH0038863350',ex:'SIX Zürich',sec:'Consumentengoederen',ind:'Voeding',cty:'Zwitserland',ccy:'CHF',p:80.5,fv:89,beta:.5,f:'staples',iv:.02,al:-.0002,s:[4,2,3,4,5],pe:18,g:4,roe:30,de:150,dps:3.05,dm:[[4,22]],geo:[30,33,20,17]},
   {t:'NOVO',p0:150,n:'Novo Nordisk B',isin:'DK0062498333',ex:'Nasdaq Kopenhagen',sec:'Gezondheidszorg',ind:'Farmacie',cty:'Denemarken',ccy:'DKK',p:330,fv:410,beta:.7,f:'health',iv:.034,al:.0018,s:[5,4,6,5,4],pe:14,g:8,roe:70,de:60,dps:11.4,dm:[[3,28],[8,20]],dmw:[.65,.35],geo:[24,56,10,10]},
+  {t:'KBC',p0:62,n:'KBC Groep',isin:'BE0003565737',ex:'Euronext Brussel',sec:'Financiën',ind:'Banken',cty:'België',ccy:'EUR',p:104,fv:110,beta:1.1,f:'fin',iv:.028,al:.001,s:[5,3,4,4,5],pe:11,g:5,roe:15,de:250,dps:4.85,dm:[[5,15],[11,15]],dmw:[.75,.25],geo:[95,3,1,1]},
+  {t:'ARGX',p0:115,n:'argenx',isin:'NL0010832176',ex:'Euronext Brussel',sec:'Gezondheidszorg',ind:'Biotechnologie',cty:'België',ccy:'EUR',p:690,fv:720,beta:.6,f:'health',iv:.045,al:.0025,s:[2,6,3,6,2],pe:45,g:30,roe:20,de:5,dps:0,dm:[],geo:[15,75,5,5]},
   {t:'NVDA',p0:3.4,n:'Nvidia',isin:'US67066G1040',ex:'Nasdaq',sec:'Technologie',ind:'Halfgeleiders',cty:'Verenigde Staten',ccy:'USD',p:185.0,fv:225,beta:1.8,f:'semi',iv:.055,al:.0062,s:[2,6,6,6,0],pe:45,g:35,roe:100,de:15,dps:.04,dm:[[3,28],[6,28],[9,28],[12,28]],geo:[10,45,40,5]},
   {t:'IWDA',etf:true,p0:50,n:'iShares Core MSCI World',isin:'IE00B4L5Y983',ex:'Euronext Amsterdam',sec:"ETF's",ind:'Wereldwijd',cty:'Ierland',ccy:'EUR',p:110.0,fv:110,beta:.75,f:'tech',iv:.008,al:.0011,s:[3,3,4,4,0],pe:21,g:10,roe:17,de:60,dps:0,dm:[],geo:[16,73,9,2],ter:.20,acc:true,lt:'msciw'},
   {t:'VWRL',etf:true,p0:72,n:'Vanguard FTSE All-World',isin:'IE00B3RBWM25',ex:'Euronext Amsterdam',sec:"ETF's",ind:'Wereldwijd',cty:'Ierland',ccy:'EUR',p:142.0,fv:142,beta:.72,f:'tech',iv:.008,al:.0009,s:[3,3,4,4,2],pe:19,g:9,roe:16,de:60,dps:2.0,dm:[[3,28],[6,26],[9,25],[12,24]],geo:[16,64,16,4],ter:.19,acc:false,lt:'ftaw'},
@@ -53,7 +55,7 @@ export const TXIN=[
   ['2025-03-03','SELL','KPN',800],['2025-09-01','BUY','NVDA',40],['2026-02-02','SELL','HEIA',60],
   // buitenlandse aandelen
   ['2019-10-07','BUY','NVDA',300],['2020-11-02','BUY','SAP',40],['2021-04-06','BUY','NOVO',120],['2021-11-01','BUY','MC',8],
-  ['2022-09-05','BUY','NESN',70],['2024-03-04','SELL','NVDA',120],['2025-06-02','BUY','NOVO',60],
+  ['2022-09-05','BUY','NESN',70],['2021-05-03','BUY','KBC',120],['2022-02-07','BUY','ARGX',15],['2024-03-04','SELL','NVDA',120],['2025-06-02','BUY','NOVO',60],
   // ETF's: eenmalige aankopen
   ['2019-04-01','BUY','IWDA',120],['2021-02-01','BUY','VWRL',80],['2021-05-03','BUY','EMIM',300],['2024-05-06','BUY','VWRL',40],['2025-01-06','BUY','EMIM',200],
   // periodiek beleggen: elk kwartaal 10 stuks IWDA
@@ -64,12 +66,12 @@ export const LOOK={
   msciw:{'Verenigde Staten':72,'Japan':5.5,'Verenigd Koninkrijk':3.5,'Canada':3,'Frankrijk':2.7,'Zwitserland':2.4,'Duitsland':2.3,'Australië':1.7,'Nederland':1.2,'Denemarken':.8,'Overig ontwikkeld':4.9},
   ftaw:{'Verenigde Staten':63,'Japan':5.5,'Verenigd Koninkrijk':3.2,'China':2.8,'Canada':2.8,'Frankrijk':2.3,'India':2.2,'Zwitserland':2.1,'Taiwan':2,'Duitsland':2,'Overig ontwikkeld':8,'Overig opkomend':6.1},
   em:{'China':25,'India':20,'Taiwan':19,'Zuid-Korea':10,'Brazilië':4,'Saoedi-Arabië':3.5,'Zuid-Afrika':3.2,'Mexico':2,'Overig opkomend':13.3}};
-export const REGION={'Nederland':'Europa','Duitsland':'Europa','Frankrijk':'Europa','Zwitserland':'Europa','Denemarken':'Europa','Verenigd Koninkrijk':'Europa','Ierland':'Europa',
+export const REGION={'Nederland':'Europa','België':'Europa','Duitsland':'Europa','Frankrijk':'Europa','Zwitserland':'Europa','Denemarken':'Europa','Verenigd Koninkrijk':'Europa','Ierland':'Europa',
   'Verenigde Staten':'Noord-Amerika','Canada':'Noord-Amerika','Japan':'Azië-Pacific','Australië':'Azië-Pacific','China':'Opkomende markten','India':'Opkomende markten','Taiwan':'Opkomende markten',
   'Zuid-Korea':'Opkomende markten','Brazilië':'Opkomende markten','Saoedi-Arabië':'Opkomende markten','Zuid-Afrika':'Opkomende markten','Mexico':'Opkomende markten','Overig ontwikkeld':'Overig ontwikkeld','Overig opkomend':'Opkomende markten'};
 export const CCYOF={'Verenigde Staten':'USD','Canada':'CAD','Japan':'JPY','Verenigd Koninkrijk':'GBP','Zwitserland':'CHF','Denemarken':'DKK','Australië':'AUD','China':'CNY','India':'INR','Taiwan':'TWD','Zuid-Korea':'KRW'};
 // Dividendbelasting bij de bron per land van vestiging (wat je in NL kunt verrekenen is maximaal 15%)
-export const WHTC={'Nederland':.15,'Verenigde Staten':.15,'Duitsland':.26375,'Frankrijk':.128,'Zwitserland':.35,'Denemarken':.27,'Verenigd Koninkrijk':0,'Ierland':0};
+export const WHTC={'Nederland':.15,'België':.3,'Verenigde Staten':.15,'Duitsland':.26375,'Frankrijk':.128,'Zwitserland':.35,'Denemarken':.27,'Verenigd Koninkrijk':0,'Ierland':0};
 // Optiestrategieën (Euronext-opties op echte onderliggende koersen, premies via Black-Scholes)
 // u: onderliggende (AEX = Mini AEX-index-optie, vermenigvuldiger 10; aandelen 100)
 export const OPT_PLAN=[
