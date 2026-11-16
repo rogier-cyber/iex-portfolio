@@ -33,7 +33,6 @@
       <a href="#opties">Opties</a>
       <a href="#analisten">Analisten</a>
       <a href="#coach">Beter beleggen</a>
-      <a href="#spreiding">Spreiding</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
       <a href="#nieuws">Nieuws</a>
@@ -128,6 +127,33 @@
     <h3 style="margin:20px 0 4px">Beweeglijkheid per positie</h3>
     <p class="note" style="margin:0 0 6px">Geannualiseerde volatiliteit van weekrendementen.</p>
     <div class="chart" id="chVol" style="height:440px"></div>
+  </div>
+  <div class="panel cosec" id="spreiding"><div class="t"><span class="eyebrow">Spreiding</span><h2>Landen, regio's en valuta</h2><p>Waar je geld echt zit, inclusief de landen binnen je ETF's.</p></div></div>
+  <div class="panel"><header><div class="t hero" id="spreadHero"></div></header></div>
+  <div class="grid g-3-1">
+    <div class="panel">
+      <header><div class="t"><h2>Waar zit je geld echt</h2><p>Per regio en land, met doorkijk: een ETF telt mee naar de landen waarin hij belegt. Losse aandelen tellen bij het land van vestiging.</p></div></header>
+      <div class="chart" id="chSun" style="height:480px"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Beleggingstype</h2><p>Aandelen, ETF's en gekochte opties.</p></div></header>
+      <div class="chart short" id="chAsset"></div>
+      <p class="note" id="assetNote"></p>
+      <header style="margin-top:18px"><div class="t"><h2>Valuta</h2><p>Het valutarisico achter je beleggingen.</p></div></header>
+      <div class="seg" id="ccyMode" style="margin-bottom:6px"><button aria-pressed="true" data-v="lt">Onderliggend</button><button aria-pressed="false" data-v="ccy">Noteringsvaluta</button></div>
+      <div class="chart short" id="chCcy2"></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Jij tegenover de wereld</h2><p>Over- en onderweging per land ten opzichte van de MSCI World, in procentpunten.</p></div></header>
+      <div class="chart" id="chHome" style="height:360px"></div>
+      <p class="note" id="homeNote"></p>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Alle landen</h2><p>Direct via aandelen of indirect via ETF's.</p></div></header>
+      <div class="tw" style="max-height:420px;overflow:auto"><table id="tblCountry"></table></div>
+    </div>
   </div>
 </section>
 
@@ -399,35 +425,7 @@
   </div>
 </section>
 
-<!-- SPREIDING -->
-<section class="view" id="v-spreiding" hidden>
-  <div class="panel"><header><div class="t hero" id="spreadHero"></div></header></div>
-  <div class="grid g-3-1">
-    <div class="panel">
-      <header><div class="t"><h2>Waar zit je geld echt</h2><p>Per regio en land, met doorkijk: een ETF telt mee naar de landen waarin hij belegt. Losse aandelen tellen bij het land van vestiging.</p></div></header>
-      <div class="chart" id="chSun" style="height:480px"></div>
-    </div>
-    <div class="panel">
-      <header><div class="t"><h2>Beleggingstype</h2><p>Aandelen, ETF's en gekochte opties.</p></div></header>
-      <div class="chart short" id="chAsset"></div>
-      <p class="note" id="assetNote"></p>
-      <header style="margin-top:18px"><div class="t"><h2>Valuta</h2><p>Het valutarisico achter je beleggingen.</p></div></header>
-      <div class="seg" id="ccyMode" style="margin-bottom:6px"><button aria-pressed="true" data-v="lt">Onderliggend</button><button aria-pressed="false" data-v="ccy">Noteringsvaluta</button></div>
-      <div class="chart short" id="chCcy2"></div>
-    </div>
-  </div>
-  <div class="grid g-1-1">
-    <div class="panel">
-      <header><div class="t"><h2>Jij tegenover de wereld</h2><p>Over- en onderweging per land ten opzichte van de MSCI World, in procentpunten.</p></div></header>
-      <div class="chart" id="chHome" style="height:360px"></div>
-      <p class="note" id="homeNote"></p>
-    </div>
-    <div class="panel">
-      <header><div class="t"><h2>Alle landen</h2><p>Direct via aandelen of indirect via ETF's.</p></div></header>
-      <div class="tw" style="max-height:420px;overflow:auto"><table id="tblCountry"></table></div>
-    </div>
-  </div>
-</section>
+
 
 <!-- RENDEMENT -->
 <section class="view" id="v-rendement" hidden>

@@ -342,3 +342,4 @@ tr.jrow{cursor:pointer}tr.jrow:hover td{background:color-mix(in srgb,var(--accen
 @media (max-width:600px){.id h1.brand img{height:32px}}
 #subLine,#srcBadge{display:none!important}
 #tblIns a{color:var(--accent);text-decoration:none}#tblIns a:hover{text-decoration:underline}
+#spreiding{scroll-margin-top:130px}

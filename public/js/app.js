@@ -974,7 +974,7 @@ function lessons(){const L=[];const add=(sev,title,seen,res,tryit,metric)=>L.pus
     else add(0,'Je verkoopmomenten pakten goed uit',`Een jaar na verkoop stonden je verkochte posities samen ${eur(-regretSum)} lager dan je verkoopprijs.`,'odean99','Noteer in je dagboek wat je toen zag, zodat je dit kunt herhalen.',eur(-regretSum)+' bespaard');}
   if(GAP<-.005)add(2,'Je rendement blijft achter bij dat van je beleggingen',`Je beleggingen haalden ${pct(TWRA)} per jaar (tijdgewogen), jij ${pct(IRR)} (geldgewogen). Het verschil van ${pct(-GAP)} per jaar komt door het moment waarop je geld erbij deed of eruit haalde.`,'mstar25','Beleg een vast bedrag op een vaste dag. Dan hangt je instap niet van je gevoel af.',pctS(GAP));
   else add(0,'Je timing van stortingen werkt in je voordeel',`Je geldgewogen rendement (${pct(IRR)}) ligt ${pct(GAP)} per jaar boven het tijdgewogen rendement (${pct(TWRA)}): je stortte vaker op gunstige momenten.`,'mstar25','Periodiek beleggen houdt dit vol zonder dat je de markt hoeft te voorspellen.',pctS(GAP));
-  if(NLW>.35)add(1,'Sterke thuismarktvoorkeur',`${pct(NLW,0)} van je vermogen zit in Nederlandse aandelen, tegen ruim 1% in de MSCI World.`,'french91','Gebruik nieuwe inleg eerst voor regio\'s waar je weinig hebt. De tab Spreiding laat zien waar.',pct(NLW,0));
+  if(NLW>.35)add(1,'Sterke thuismarktvoorkeur',`${pct(NLW,0)} van je vermogen zit in Nederlandse aandelen, tegen ruim 1% in de MSCI World.`,'french91','Gebruik nieuwe inleg eerst voor regio\'s waar je weinig hebt. Onder Analyse, bij Spreiding, zie je waar.',pct(NLW,0));
   if(EFFN<12)add(1,'Je portefeuille is geconcentreerder dan hij lijkt',`Je hebt ${OPEN.length} posities, maar door de verschillen in gewicht gedraagt hij zich als ${nf1.format(EFFN)} gelijke posities.`,'bessem18','Overweeg een maximum per positie, bijvoorbeeld 8%, en stel dat in bij je eigen regels.',nf1.format(EFFN));
   if(avgTurn>.5)add(1,'Je handelt relatief veel',`Je omloopsnelheid is gemiddeld ${pct(avgTurn,0)} per jaar. Transactiekosten waren in totaal ${eur(FEES_ALL)}.`,'afm15','Vaste momenten om te handelen (bijvoorbeeld eens per kwartaal) halen impulsaankopen eruit.',pct(avgTurn,0));
   else add(0,'Je kosten zijn laag',`Transactiekosten waren in totaal ${eur(FEES_ALL)}, zo'n ${pct(feeDrag,2)} van je vermogen per jaar.`,'barber00','Blijf letten op valutakosten bij buitenlandse aandelen.',eur(FEES_ALL));
@@ -1254,15 +1254,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.cl
 
 /* ============ routing & controls ============ */
 const VIEWS={overzicht:()=>{renderHero();renderValue();renderRadarOv();renderTree();renderSignals();renderHoldings();},
- analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();},
+ analyse:()=>{renderRadar();renderLift();renderChecks();renderStrip();renderSankey();renderGeo();renderCorr();renderRisk();renderSpread();},
  waardering:renderVal, dividend:()=>{renderDivHero();renderDiv();renderDivContrib();renderCal();},
  belasting:()=>{renderTaxHero();renderTax();},
- opties:renderOptions, analisten:renderAnalysts, coach:renderCoach, spreiding:renderSpread,
+ opties:renderOptions, analisten:renderAnalysts, coach:renderCoach,
  rendement:()=>{renderWater();renderContrib();renderReport();renderTx();}, vergelijken:renderBench, nieuws:renderNews, datamodel:renderEnts};
 let cur='overzicht';
-function show(){const h=location.hash.slice(1);cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
+function show(){let h=location.hash.slice(1);const jump=h==='spreiding';if(jump)h='analyse';cur=VIEWS[h]?h:'overzicht';Object.keys(VIEWS).forEach(k=>{document.getElementById('v-'+k).hidden=k!==cur;});
   $$('.tabs a').forEach(a=>a.setAttribute('aria-current',a.getAttribute('href')==='#'+cur?'page':'false'));
-  Object.keys(charts).forEach(k=>{charts[k].dispose();delete charts[k];});VIEWS[cur]();}
+  Object.keys(charts).forEach(k=>{charts[k].dispose();delete charts[k];});VIEWS[cur]();if(jump)setTimeout(()=>{const el=document.getElementById('spreiding');if(el)el.scrollIntoView({block:'start'});},60);}
 window.addEventListener('hashchange',()=>{show();window.scrollTo(0,0);});
 function segBind(id,fn){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;$$(id+' button').forEach(x=>x.setAttribute('aria-pressed',x===bt));fn(bt.dataset);});}
 segBind('#tmPick',d=>{tmSel=d.v;renderTree();});segBind('#taxPartner',d=>{taxP=+d.v;renderTaxHero();renderTax();});segBind('#bmRange',d=>{bmRange=+d.v;renderBench();});
