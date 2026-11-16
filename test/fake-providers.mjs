@@ -44,3 +44,4 @@ const besi = data.instruments.BESI.fundamentals;
 console.log("source", data.source, "| instruments", Object.keys(data.instruments).length, "| bench", Object.keys(data.benchmarks).map(k=>k+":"+data.benchmarks[k].prices.length).join(" "), "| fx", data.fx.prices.length, "| news", data.news.length);
 console.log("ASML fund", JSON.stringify(data.instruments.ASML.fundamentals).slice(0,300));
 console.log("BESI from FMP only", JSON.stringify(besi));
+console.log("AFM", JSON.stringify(data.afm).slice(0, 220), "| ASML afm rows:", (data.instruments.ASML.afm || []).length);
