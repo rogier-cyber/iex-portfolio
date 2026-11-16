@@ -322,6 +322,36 @@
       <div class="chart" id="chCoCost" style="height:340px"></div>
     </div>
   </div>
+  <div class="panel cosec"><div class="t"><span class="eyebrow">Dieper</span><h2>Patronen die je zelf niet ziet</h2><p>Vier gewoonten die onderzoek bij veel particuliere beleggers vindt, getoetst op jouw eigen transacties.</p></div></div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Wat je verkoopt</h2><p>Het rangorde-effect: verkoop je vooral je beste en slechtste positie, en laat je de middenmoot liggen?</p></div></header>
+      <div class="chart" id="chDpRank" style="height:280px"></div>
+      <p class="note" id="dpRankNote"></p>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Na een goede periode</h2><p>Ga je meer handelen als het goed ging? Losse transacties per kwartaal naast het rendement van het kwartaal ervoor.</p></div></header>
+      <div class="kpis k3" id="dpConfKpis" style="margin-bottom:10px"></div>
+      <div class="chart" id="chDpConf" style="height:250px"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Handel en marktonrust</h2><p>Laat je je leiden door wat de markt doet? Je losse aan- en verkopen naast de weekbewegingen van de AEX.</p></div></header>
+    <div class="chart" id="chDpAtt" style="height:300px"></div>
+    <p class="note" id="dpAttNote"></p>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Terugkopen</h2><p>Eerder verkocht en weer gekocht: tegen welke koers ten opzichte van je verkoopprijs?</p></div></header>
+      <div class="chart" id="chDpRebuy" style="height:260px"></div>
+      <p class="note" id="dpRebuyNote"></p>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Uitkomsten van je optietrades</h2><p>Verdeling van het resultaat per afgesloten trade, na kosten.</p></div></header>
+      <div class="kpis k3" id="dpOptKpis" style="margin-bottom:10px"></div>
+      <div class="chart" id="chDpOpt" style="height:250px"></div>
+    </div>
+  </div>
   <div class="panel">
     <header><div class="t"><h2>Beleggingsdagboek</h2><p id="jCount"></p></div><div class="seg" id="jPick"><button aria-pressed="true" data-v="ALL">Alles</button><button aria-pressed="false" data-v="OPEN">Zonder notitie</button><button aria-pressed="false" data-v="DONE">Met notitie</button></div></header>
     <div class="tw" style="max-height:520px;overflow:auto"><table id="tblJournal"></table></div>
@@ -336,6 +366,12 @@
       <header><div class="t"><h2>Gevoel bij aankoop</h2><p>Kocht je beter als je zeker was, of juist als je twijfelde?</p></div></header>
       <div class="chart" id="chJEmo"></div>
     </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Hoe goed zijn je koersdoelen?</h2><p>We kijken de koersdoelen uit je dagboek na: gehaald binnen je eigen horizon, of niet?</p></div></header>
+    <div class="kpis" id="dpCalKpis" style="margin-bottom:12px"></div>
+    <div class="chart" id="chDpCal" style="height:340px"></div>
+    <p class="note" id="dpCalNote"></p>
   </div>
   <div class="grid g-1-1">
     <div class="panel">
