@@ -33,6 +33,13 @@ globalThis.fetch = async (u) => {
       "12-11-2026;ASML Holding N.V.;Test A.;;CEO;Gewoon aandeel;NL0010273215;Verwerving;Aankoop;Nee;XAMS;905,20;1.000,00;EUR\r\n" +
       "03-10-2026;ING Groep N.V.;Test B.;;Board member;Gewoon aandeel;NL0011821202;Vervreemding;Verkoop;Nee;XAMS;21,10;5.000,00;EUR\r\n";
     return { ok: true, status: 200, arrayBuffer: async () => new TextEncoder().encode(csv).buffer, json: async () => ({}) };
+  } else if (url.hostname === "www.ser-ag.com") {
+    const items = url.searchParams.get("pageNumber") === "0" ? [
+      { ISIN: "CH0038863350", transactionDate: "20261105", buySellIndicator: "B", transactionSize: 2000, transactionAmountPerSecurityCHF: 84.5, transactionAmountCHF: 169000, obligorFunctionCode: "1", obligorRelatedPartyInd: "F", notificationSubmitter: "Nestlé S.A." },
+      { ISIN: "CH1386220409", transactionDate: "20261104", transactionSize: 1, transactionAmountPerSecurityCHF: 135000, obligorFunctionCode: "2" }] : [];
+    return new Response(JSON.stringify({ status: "Ok", totalCount: 2, itemList: items }), { status: 200 });
+  } else if (url.hostname === "bdif.amf-france.org") {
+    return new Response(JSON.stringify({ aggregations: {}, hits: { total: 2, hits: [{ _source: { numero: "2026DD123", dateInformation: "2026-10-30T00:00:00Z", titre: "Déclaration des dirigeants - LVMH Moët Hennessy Louis Vuitton - acquisition", path: "pdf/2026DD123.pdf" } }, { _source: { numero: "2026DD9", dateInformation: "2026-10-01T00:00:00Z", titre: "Autre société - cession" } }] } }), { status: 200 });
   } else throw new Error("unexpected host " + url.hostname);
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 };
@@ -45,3 +52,4 @@ console.log("source", data.source, "| instruments", Object.keys(data.instruments
 console.log("ASML fund", JSON.stringify(data.instruments.ASML.fundamentals).slice(0,300));
 console.log("BESI from FMP only", JSON.stringify(besi));
 console.log("AFM", JSON.stringify(data.afm).slice(0, 220), "| ASML afm rows:", (data.instruments.ASML.afm || []).length);
+console.log("EU", JSON.stringify(data.insiderSources), "| NESN:", JSON.stringify((data.instruments.NESN.afm||[])[0]), "| MC:", JSON.stringify((data.instruments.MC.afm||[])[0]));
