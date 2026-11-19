@@ -7,7 +7,10 @@ import { readdir } from "node:fs/promises";
 const logoDir = new URL("../public/logos/", import.meta.url);
 const logos = {};
 for (const f of await readdir(logoDir)) logos[f.replace(".webp", "")] = "data:image/webp;base64," + (await readFile(new URL(f, logoDir))).toString("base64");
-const js = data.replace(/^export /gm, "") + "\nconst LOGOS=" + JSON.stringify(logos) + ";\n" + app.replace(/^import .*$/m, "").replace("src=\"logos/${x.t}.webp\"", "src=\"${LOGOS[x.t]}\"");
+// losse modules (rekenkern) als ingepakte blokken, zodat hun hulpnamen niet botsen met die van app.js
+const mod = (src) => { const names = [...src.matchAll(/^export (?:async )?(?:function|const|let) (\w+)/gm)].map((m) => m[1]); return `const {${names.join(",")}}=(()=>{${src.replace(/^export /gm, "")}\nreturn {${names.join(",")}};})();\n`; };
+const mods = mod(await r("js/corporate-actions.js")) + mod(await r("js/ledger.js"));
+const js = data.replace(/^export /gm, "") + "\n" + mods + "const LOGOS=" + JSON.stringify(logos) + ";\n" + app.replace(/^import .*$/gm, "").replace("src=\"logos/${x.t}.webp\"", "src=\"${LOGOS[x.t]}\"");
 const brand = "data:image/webp;base64," + (await readFile(new URL("../public/brand/logo.webp", import.meta.url))).toString("base64");
 const body = html.split("<body>")[1].split("</body>")[0].replaceAll('src="brand/logo.webp"', `src="${brand}"`);
 const out = `<title>IEX Portfolio Kompas</title>
