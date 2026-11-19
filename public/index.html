@@ -36,6 +36,7 @@
       <a href="#coach">Beter beleggen</a>
       <a href="#rendement">Rendement</a>
       <a href="#vergelijken">Vergelijken</a>
+      <a href="#controle">Controle</a>
       <a href="#nieuws">Nieuws</a>
     </nav>
   </div>
@@ -56,6 +57,7 @@
       </div>
       <div class="chart" id="chValue"></div>
       <div class="legend" id="lgValue"></div>
+      <div style="text-align:right"><button type="button" class="badge sharebtn" data-share="chValue" data-name="portefeuille-waarde" title="Download of deel als afbeelding">Deel als afbeelding</button></div>
     </div>
     <div class="panel">
       <header><div class="t"><h3>Kompasscore</h3><p>Vijf kenmerken, elk 0 tot 6, gewogen naar positiegrootte. De stippellijn is de AEX.</p></div></header>
@@ -75,7 +77,7 @@
     </div>
   </div>
   <div class="panel">
-    <header><div class="t"><h2>Posities</h2><p>Klik op een positie voor details.</p></div><span class="badge" id="posCount"></span></header>
+    <header><div class="t"><h2>Posities</h2><p>Klik op een positie voor details. Kies zelf welke kolommen je ziet.</p></div><div style="display:flex;gap:8px;align-items:center"><span class="badge" id="posCount"></span><details class="colpick" id="colPick"></details></div></header>
     <div class="tw"><table id="tblHoldings"></table></div>
   </div>
 </section>
@@ -155,6 +157,19 @@
       <div class="tw" style="max-height:420px;overflow:auto"><table id="tblCountry"></table></div>
     </div>
   </div>
+  <div class="grid g-2-1">
+    <div class="panel">
+      <header><div class="t"><h2>Wat zit er echt in je ETF's?</h2><p>De grootste ondernemingen in je portefeuille, direct en via je ETF's samen.</p></div></header>
+      <p id="overlapLine" style="margin:0 0 10px;font-size:13.5px;color:var(--ink-2)"></p>
+      <div class="tw"><table id="tblOverlap"></table></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Sectoren met doorkijk</h2><p>Je losse aandelen plus de sectoren binnen je ETF's.</p></div></header>
+      <div class="chart short" id="chSecLT"></div>
+      <p class="note" id="secLTNote"></p>
+      <div style="text-align:right"><button type="button" class="badge sharebtn" data-share="chSecLT" data-name="sectoren-met-doorkijk" title="Download of deel als afbeelding">Deel als afbeelding</button></div>
+    </div>
+  </div>
 </section>
 
 <!-- WAARDERING -->
@@ -179,7 +194,15 @@
   <div class="panel">
     <header><div class="t"><h2>Dividend per maand</h2><p>Ontvangen netto dividend en de verwachting voor de komende twaalf maanden, na bronbelasting.</p></div><div class="seg" id="divGran"><button aria-pressed="true" data-v="m">Per maand</button><button aria-pressed="false" data-v="y">Per jaar</button></div></header>
     <div class="chart" id="chDiv"></div>
-    <div class="legend"><span><i style="background:var(--accent)"></i>Ontvangen</span><span><i style="background:color-mix(in srgb,var(--accent) 38%,var(--surface))"></i>Verwacht</span></div>
+    <div class="legend"><span><i style="background:var(--accent)"></i>Ontvangen</span><span><i style="background:color-mix(in srgb,var(--accent) 38%,var(--surface))"></i>Verwacht</span><span style="margin-left:auto"><button type="button" class="badge sharebtn" data-share="chDiv" data-name="dividend-per-maand" title="Download of deel als afbeelding">Deel als afbeelding</button></span></div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Jaarinkomen uit dividend</h2><p>Hoe je bruto dividendinkomen per jaar groeide en waar het naartoe gaat. Stel je doel en je inleg in.</p></div><div class="seg" id="padiRe"><button aria-pressed="true" data-v="1">Herbeleggen</button><button aria-pressed="false" data-v="0">Uitkeren</button></div></header>
+    <div class="kpis" id="padiKpis"></div>
+    <div class="padictl"><label>Doel per jaar (€)<input id="padiGoal" type="number" inputmode="decimal" step="100" min="0"></label><label>Inleg per maand (€)<input id="padiMonthly" type="number" inputmode="decimal" step="50" min="0"></label><label>Dividendgroei per jaar (%)<input id="padiG" type="number" inputmode="decimal" step="0.5"></label></div>
+    <div class="chart" id="chPadi"></div>
+    <div class="legend"><span><i class="line" style="background:var(--accent)"></i>Jaarinkomen (12 maanden terug)</span><span><i class="dash"></i>Verwachting</span><span><i class="dash" style="border-color:var(--good)"></i>Doel</span></div>
+    <p class="note" id="padiNote"></p>
   </div>
   <div class="grid g-1-1">
     <div class="panel">
@@ -192,9 +215,26 @@
     </div>
   </div>
   <div class="panel">
-    <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata. Data na vandaag zijn schattingen op basis van het vorige jaar.</p></div><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
+    <header><div class="t"><h2>Bronbelasting per positie</h2><p>Wat er werkelijk is ingehouden, wat je kunt verrekenen en wat je nog kunt terugvragen.</p></div></header>
+    <div id="whtHero"></div>
+    <div class="tw" style="margin-top:12px"><table id="tblWhtPos"></table></div>
+    <p class="note" id="whtNote"></p>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Hoe goed was de prognose?</h2><p>Wat we een jaar geleden voor je huidige posities voorspelden, tegenover wat er binnenkwam (netto).</p></div></header>
+      <p id="divAccLine" style="margin:0 0 10px;font-size:13.5px;color:var(--ink-2)"></p>
+      <div class="tw"><table id="tblDivAcc"></table></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Wat als je alles had herbelegd?</h2><p>Elk ontvangen dividend direct terug in hetzelfde aandeel.</p></div></header>
+      <div id="dripBox"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Kalender</h2><p>Ex-dividend- en betaaldata en cijferpublicaties. Dividenden na vandaag zijn schattingen op basis van het vorige jaar, tenzij al aangekondigd.</p></div><button type="button" class="badge sharebtn" id="icsBtn" title="Download een agendabestand voor Google, Outlook of Apple Agenda">Zet in je agenda</button><div class="calnav"><button id="calPrev" aria-label="Vorige maand">‹</button><b id="calTitle"></b><button id="calNext" aria-label="Volgende maand">›</button></div></header>
     <div class="cal" id="cal"></div>
-    <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span></div>
+    <div class="legend"><span><i style="background:color-mix(in srgb,var(--c4) 45%,transparent)"></i>Ex-dividend</span><span><i style="background:color-mix(in srgb,var(--good) 40%,transparent)"></i>Betaling (netto)</span><span><i style="background:color-mix(in srgb,var(--c1) 40%,transparent)"></i>Cijfers</span></div>
   </div>
 </section>
 
@@ -212,6 +252,41 @@
     <header><div class="t"><h2>Box 3 door de jaren</h2><p>Hoeveel vermogensbelasting deze portefeuille per jaar zou kosten in het huidige stelsel.</p></div></header>
     <div class="chart short" id="chBox3"></div>
     <p class="note" id="box3YearNote"></p>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Box 3 op werkelijk rendement</h2><p>Wat je zou betalen als je belasting betaalt over wat je echt verdiende, zoals het wetsvoorstel voor het nieuwe stelsel wil.</p></div></header>
+    <div class="chart short" id="chBox3New"></div>
+    <p class="note" id="box3NewNote"></p>
+  </div>
+</section>
+
+<!-- CONTROLE -->
+<section class="view" id="v-controle" hidden>
+  <div class="panel"><header><div class="t hero" id="ctlHero"></div></header><p class="note" id="ctlIssues" style="margin-top:0"></p><div id="ctlTypes" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Klopt het met je broker?</h2><p>Aantallen per positie en kas per valuta, naast het overzicht van je broker.</p></div></header>
+      <div class="tw" style="max-height:460px;overflow:auto"><table id="tblRec"></table></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Importcontroles</h2><p>Wat opviel bij het inlezen, vergeleken met koersen, dividenden en splitsingen uit de markt.</p></div></header>
+      <div id="ctlWarn" class="signals"></div>
+    </div>
+  </div>
+  <div class="grid g-1-1">
+    <div class="panel">
+      <header><div class="t"><h2>Corporate actions, in gewone taal</h2><p>Splitsingen, spin-offs, fusies en codewijzigingen die je posities raakten.</p></div></header>
+      <div id="ctlCA" class="signals"></div>
+    </div>
+    <div class="panel">
+      <header><div class="t"><h2>Kas per valuta</h2><p>Dividend in dollars blijft dollars tot je het omwisselt, net als bij je broker.</p></div></header>
+      <div class="tw"><table id="tblCash"></table></div>
+    </div>
+  </div>
+  <div class="panel">
+    <header><div class="t"><h2>Kostprijsmethode</h2><p>Brokers rekenen verschillend. Het totaal blijft gelijk, alleen het moment waarop winst "gerealiseerd" heet verschuift.</p></div><div class="seg" id="ctlMethod"><button aria-pressed="true" data-v="avg">Gemiddelde kostprijs</button><button aria-pressed="false" data-v="fifo">FIFO</button></div></header>
+    <div class="tw"><table id="tblMethod"></table></div>
+    <p class="note">Gemiddelde kostprijs: elke verkoop tegen het gemiddelde van al je aankopen. FIFO: de oudste aankopen worden eerst verkocht. In Nederland maakt het fiscaal niets uit (box 3), maar het gerealiseerde resultaat ziet er anders uit.</p>
   </div>
 </section>
 

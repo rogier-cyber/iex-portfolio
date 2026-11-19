@@ -286,10 +286,14 @@ export function checkAgainstMarket(entries, market, opts = {}) {
   const booked = entries.filter((e) => e.type === "DIVIDEND");
   const reversals = entries.filter((e) => e.type === "DIVIDEND_REVERSAL");
   const insts = [...new Set(entries.filter((e) => e.inst).map((e) => e.inst))];
+  // alleen de boekingen die deze positie raken (ook de moeder bij een spin-off of fusie): veel sneller dan alles herrekenen
+  const rel = (inst) => { const par = new Set(entries.filter((e) => e.newInst === inst).map((e) => e.inst)); return entries.filter((e) => e.inst === inst || e.newInst === inst || par.has(e.inst)); };
+  const qtyAt = (list, inst, date) => replay(list.filter((e) => e.date < date)).positions[inst]?.qty || 0;
   for (const inst of insts) {
+    const R = rel(inst);
     for (const d of market.dividends?.[inst] || []) {
       if ((d.payDate || d.exDate) > today) continue;
-      const q = replay(entries.filter((e) => e.date < d.exDate)).positions[inst]?.qty || 0;
+      const q = qtyAt(R, inst, d.exDate);
       const got = booked.filter((b) => b.inst === inst && (b.exDate === d.exDate || Math.abs(Date.parse(b.payDate || b.date) - Date.parse(d.payDate || d.exDate)) < 20 * 864e5));
       const rev = reversals.filter((b) => b.inst === inst && b.exDate === d.exDate).length;
       if (q > 1e-6 && got.length - rev <= 0) W("warn", "div-missing", { date: d.payDate || d.exDate, inst }, `Dividend van ${d.amount} ${d.ccy || ""} per aandeel (ex-datum ${d.exDate}) niet ontvangen, terwijl je ${r2(q)} stuks had. Verwacht bruto ${r2(q * d.amount)} ${d.ccy || ""}.`, { expected: q * d.amount, ccy: d.ccy });
@@ -300,12 +304,12 @@ export function checkAgainstMarket(entries, market, opts = {}) {
       if (got.length - rev > 1) W("warn", "div-double", got[1], `Dividend met ex-datum ${d.exDate} is ${got.length - rev} keer geboekt.`);
     }
     for (const b of booked.filter((x) => x.inst === inst && x.exDate)) {
-      const q = replay(entries.filter((e) => e.date < b.exDate)).positions[inst]?.qty || 0;
+      const q = qtyAt(R, inst, b.exDate);
       if (q <= 1e-6) W("warn", "div-no-position", b, `Dividend ontvangen zonder positie op de dag vóór de ex-datum (${b.exDate}).`);
     }
     for (const s of market.splits?.[inst] || []) {
       if (s.date > today) continue;
-      const held = replay(entries.filter((e) => e.date < s.date)).positions[inst]?.qty || 0;
+      const held = qtyAt(R, inst, s.date);
       const done = entries.some((e) => e.type === "SPLIT" && e.inst === inst && Math.abs(Date.parse(e.date) - Date.parse(s.date)) < 10 * 864e5);
       if (held > 1e-6 && !done) W("error", "split-missing", { date: s.date, inst }, `Split ${s.ratio}:1 van ${s.date} staat niet in je boekingen, terwijl je ${r2(held)} stuks had.`, { ratio: s.ratio });
     }

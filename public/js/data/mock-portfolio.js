@@ -71,7 +71,7 @@ export const REGION={'Nederland':'Europa','België':'Europa','Duitsland':'Europa
   'Zuid-Korea':'Opkomende markten','Brazilië':'Opkomende markten','Saoedi-Arabië':'Opkomende markten','Zuid-Afrika':'Opkomende markten','Mexico':'Opkomende markten','Overig ontwikkeld':'Overig ontwikkeld','Overig opkomend':'Opkomende markten'};
 export const CCYOF={'Verenigde Staten':'USD','Canada':'CAD','Japan':'JPY','Verenigd Koninkrijk':'GBP','Zwitserland':'CHF','Denemarken':'DKK','Australië':'AUD','China':'CNY','India':'INR','Taiwan':'TWD','Zuid-Korea':'KRW'};
 // Dividendbelasting bij de bron per land van vestiging (wat je in NL kunt verrekenen is maximaal 15%)
-export const WHTC={'Nederland':.15,'België':.3,'Verenigde Staten':.15,'Duitsland':.26375,'Frankrijk':.128,'Zwitserland':.35,'Denemarken':.27,'Verenigd Koninkrijk':0,'Ierland':0};
+export const WHTC={'Nederland':.15,'België':.3,'Verenigde Staten':.15,'Duitsland':.26375,'Frankrijk':.25,'Zwitserland':.35,'Denemarken':.27,'Verenigd Koninkrijk':0,'Ierland':0};
 // Optiestrategieën (Euronext-opties op echte onderliggende koersen, premies via Black-Scholes)
 // u: onderliggende (AEX = Mini AEX-index-optie, vermenigvuldiger 10; aandelen 100)
 export const OPT_PLAN=[
@@ -85,3 +85,13 @@ export const OPT_PLAN=[
 export const OPT_FEE=1.0; // per contract per transactie
 // Kosten per order (EUR), valutakosten op niet-EUR orders, bronbelasting op dividend
 export const FEE=3.0, FXFEE=.0025, WHT=.15;
+// Doorkijk van ETF's naar de grootste posities en sectoren (afgerond, %, indicatief). [naam, gewicht, ticker als je hem ook los kunt hebben]
+export const ETFH={
+  msciw:{top:[['Nvidia',5.3,'NVDA'],['Apple',4.8],['Microsoft',4.4,'MSFT'],['Amazon',2.8],['Meta Platforms',1.9],['Broadcom',1.7],['Alphabet A',1.5],['Alphabet C',1.3],['Tesla',1.3],['JPMorgan Chase',.9],['ASML',.45,'ASML'],['SAP',.35,'SAP'],['Nestlé',.3,'NESN'],['Shell',.3,'SHELL'],['Novo Nordisk',.25,'NOVO'],['LVMH',.2,'MC'],['Unilever',.2,'UNA']],
+    sec:{Technologie:27,'Financiën':16,'Consumentengoederen':15,Industrie:11,Gezondheidszorg:10,Communicatie:8,Energie:4,Materialen:3,Nutsbedrijven:3,Vastgoed:2,'Zakelijke diensten':1}},
+  ftaw:{top:[['Nvidia',4.6,'NVDA'],['Apple',4.2],['Microsoft',3.8,'MSFT'],['Amazon',2.4],['Meta Platforms',1.6],['Broadcom',1.5],['Alphabet A',1.3],['TSMC',1.2],['Alphabet C',1.1],['Tesla',1.1],['Tencent',.45],['ASML',.4,'ASML'],['SAP',.3,'SAP'],['Nestlé',.26,'NESN'],['Shell',.26,'SHELL'],['Novo Nordisk',.22,'NOVO'],['LVMH',.18,'MC'],['Unilever',.18,'UNA']],
+    sec:{Technologie:28,'Financiën':17,'Consumentengoederen':15,Industrie:11,Gezondheidszorg:9,Communicatie:8,Energie:4,Materialen:4,Nutsbedrijven:3,Vastgoed:1}},
+  em:{top:[['TSMC',9.5],['Tencent',4.4],['Samsung Electronics',2.9],['Alibaba',2.6],['HDFC Bank',1.4],['Reliance Industries',1.2],['Xiaomi',1.1],['SK Hynix',1],['Meituan',.8],['Infosys',.8]],
+    sec:{Technologie:26,'Financiën':22,'Consumentengoederen':19,Communicatie:9,Industrie:7,Materialen:6,Energie:4,Gezondheidszorg:3,Nutsbedrijven:2,Vastgoed:2}}};
+// Splitsingen voor de voorbeelddata (live komen ze van EODHD)
+export const SPLITS_MOCK={NVDA:[{date:'2024-06-10',ratio:10}]};
