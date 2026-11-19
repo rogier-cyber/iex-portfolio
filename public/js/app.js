@@ -1,4 +1,5 @@
 import {AXES,AXDESC,INS,MARKET,TXIN,FEE,FXFEE,WHT,LOOK,REGION,CCYOF,WHTC,OPT_PLAN,OPT_FEE} from "./data/mock-portfolio.js";
+import {parseSplits,fixJumps,dividendPerShareNow,normCurrency,qtyEntitled} from "./corporate-actions.js";
 /* global echarts */
 // Echte marktdata (EODHD via de server) als die er is; anders draait alles op voorbeelddata.
 const LIVE=await fetch('/api/market').then(r=>r.ok?r.json():null).then(d=>d&&d.instruments?d:null).catch(()=>null);
@@ -48,12 +49,12 @@ INS.forEach(x=>{x.fvSrc='Voorbeeldschatting';x.divEvents=null;});
 /* ---- real data from EODHD ---- */
 function align(series){const pts=(series||[]).map(([d,c])=>[D(d),+c]).filter(p=>p[1]>0).sort((a,b)=>a[0]-b[0]);if(pts.length<20)return null;
   const out=new Array(NW);let j=0,last=pts[0][1];for(let i=0;i<NW;i++){const t=wdate(i)+4*DAY;while(j<pts.length&&pts[j][0]<=t){last=pts[j][1];j++;}out[i]=last;}return out;}
-// vangnet: een weekbeweging van meer dan -60% of +150% is bijna altijd een niet-verwerkte split; schaal de oudere koersen mee
-function fixJumps(px){if(!px)return px;for(let i=px.length-1;i>0;i--){const r=px[i]/px[i-1];if(r<.4||r>2.5){for(let j=0;j<i;j++)px[j]*=r;}}return px;}
+// vangnet voor niet-verwerkte splits: alleen bij een bekende split (EODHD) rond die week, zie corporate-actions.js
+const SAMPLE=i=>wdate(i)+4*DAY;
 if(LIVE){
   const fx=align(LIVE.fx&&LIVE.fx.prices); if(fx){FX=fx.map(v=>1/v);FXS.USD=FX;} // EODHD gives USD per EUR
   Object.entries(LIVE.fxs||{}).forEach(([c,f])=>{const a=align(f&&f.prices);if(a&&c!=='USD')FXS[c]=a.map(v=>1/v);});
-  INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;const px=fixJumps(align(L.prices));
+  INS.forEach(x=>{const L=LIVE.instruments[x.t];if(!L)return;x.splits=parseSplits(L.splits,D);const px=fixJumps(align(L.prices),x.splits,SAMPLE);
     if(px){x.px=px;const q=L.quote||{};if(q.last>0){x.p=q.last;x.px[NW-1]=q.last;}else x.p=px[NW-1];
       x.day=q.changePct!=null?q.changePct/100:(x.px[NW-1]/x.px[NW-2]-1);
       x.ret=[0];for(let i=1;i<NW;i++)x.ret.push(Math.log(x.px[i]/x.px[i-1]));x.live=true;}
@@ -62,7 +63,11 @@ if(LIVE){
       if(F.debtEquity!=null)x.de=Math.round(F.debtEquity*100); if(F.payout!=null)x.payout=Math.round(F.payout*(F.payout<=1.5?100:1));
       if(F.targetPrice>0){x.fv=F.targetPrice;x.fvSrc='Koersdoel analisten';}
       if(F.revGrowth!=null)x.revG=r1(F.revGrowth*100); if(F.margin!=null)x.margin=r1(F.margin*100);}
-    if(L.dividends&&L.dividends.length){x.divEvents=L.dividends.map(d=>({exd:D(d.ex),pay:D(d.pay||d.ex),ps:+d.amount})).filter(d=>d.ps>0).sort((a,b)=>a.exd-b.exd);
+    if(L.dividends&&L.dividends.length){x.divEvents=L.dividends.map(d=>{const exd=D(d.ex);const n=normCurrency(d.currency,+d.amount);
+        // bedrag per aandeel van nu (zelfde basis als koersen en aantallen); valuta van het dividend zelf, niet van de notering
+        const ps=dividendPerShareNow({amount:n.amount,adjusted:!!d.adjusted,exd},x.splits);
+        const ccy=n.ccy&&(n.ccy===x.ccy||n.ccy==='EUR'||FXS[n.ccy])?n.ccy:x.ccy;
+        return {exd,pay:D(d.pay||d.ex),ps,ccy};}).filter(d=>d.ps>0).sort((a,b)=>a.exd-b.exd);
       x.dps=x.divEvents.filter(d=>d.exd>TODAY-365*DAY&&d.exd<=TODAY).reduce((a,d)=>a+d.ps,0);}
     else if(x.live)x.dps=x.dps||0;});
   Object.entries(BENCH).forEach(([k,b])=>{const L=LIVE.benchmarks&&LIVE.benchmarks[k];const s=L&&align(L.prices);if(s)b.s=L.ccy==='USD'?s.map((v,i)=>v*FX[i]):s;});
@@ -79,16 +84,17 @@ TXIN.forEach(([ds,ty,t,q])=>{const x=BY[t],d=D(ds),i=widx(d),pl=x.px[i],fx=fxAt(
   if(ty==='BUY'){P.q+=q;P.costE+=gross;P.costL+=q*pl;TX.push({d,ty,t,q,price:pl,ccy:x.ccy,fx,amt:-(gross+fee),fee});}
   else{const avgE=P.costE/P.q,avgL=P.costL/P.q;P.real+=gross-avgE*q;P.costE-=avgE*q;P.costL-=avgL*q;P.q-=q;TX.push({d,ty,t,q,price:pl,ccy:x.ccy,fx,amt:gross-fee,fee});}});
 TX.sort((a,b)=>a.d-b.d);
-function qtyAt(t,d){let q=0;for(const tx of TX){if(tx.t!==t||tx.d>d)continue;if(tx.ty==='BUY')q+=tx.q;else if(tx.ty==='SELL')q-=tx.q;}return q;}
+// recht op dividend: positie aan het eind van de dag vóór de ex-datum
+const qtyAt=(t,exd)=>qtyEntitled(TX,t,exd);
 // dividend schedule: history (paid) + forecast (next 12 months)
 const DIVS=[]; const END12=TODAY+365*DAY;
-function pushDiv(x,exd,pay,ps,hist){const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
-  const fx=fxAt(x.ccy,hist?widx(pay):NW-1);const g=q*ps*fx;DIVS.push({t:x.t,pay,exd,q,ps,ccy:x.ccy,gross:g,tax:g*x.wht,net:g*(1-x.wht),hist,est:!hist&&!x._declared});}
+function pushDiv(x,exd,pay,ps,hist,ccy=x.ccy){const q=hist?qtyAt(x.t,exd):pos[x.t].q;if(q<=0)return;
+  const fx=fxAt(ccy,hist?widx(pay):NW-1);const g=q*ps*fx;DIVS.push({t:x.t,pay,exd,q,ps,ccy,gross:g,tax:g*x.wht,net:g*(1-x.wht),hist,est:!hist&&!x._declared});}
 INS.forEach(x=>{if(!x.divEvents)return;
-  x.divEvents.forEach(d=>{if(d.pay<START+20*DAY)return;if(d.pay<=TODAY)pushDiv(x,d.exd,d.pay,d.ps,true);else{x._declared=true;pushDiv(x,d.exd,d.pay,d.ps,false);x._declared=false;}});
+  x.divEvents.forEach(d=>{if(d.pay<START+20*DAY)return;if(d.pay<=TODAY)pushDiv(x,d.exd,d.pay,d.ps,true,d.ccy);else{x._declared=true;pushDiv(x,d.exd,d.pay,d.ps,false,d.ccy);x._declared=false;}});
   // estimate the next 12 months from the last 12, skipping payments that are already declared
   x.divEvents.filter(d=>d.pay>TODAY-365*DAY&&d.pay<=TODAY).forEach(d=>{const pay=d.pay+365*DAY,exd=d.exd+365*DAY;
-    if(x.divEvents.some(e=>Math.abs(e.pay-pay)<40*DAY))return;if(pay<=END12)pushDiv(x,exd,pay,d.ps,false);});});
+    if(x.divEvents.some(e=>Math.abs(e.pay-pay)<40*DAY))return;if(pay<=END12)pushDiv(x,exd,pay,d.ps,false,d.ccy);});});
 INS.forEach(x=>{if(!x.dps||x.divEvents)return;const w=x.dmw||x.dm.map(()=>1/x.dm.length);
   for(let y=2019;y<=new Date(END12).getUTCFullYear();y++){const dpsY=x.dps*Math.pow(1.055,y-2026);
     x.dm.forEach(([m,day],k)=>{const pay=Date.UTC(y,m-1,day),exd=pay-24*DAY;if(pay<START+20*DAY||pay>END12)return;
@@ -355,7 +361,7 @@ function glyph(s,size=30){const c=size/2,R=size/2-2;const pt=(k,r)=>{const a=-Ma
 function spark(x,w=84,h=26){const a=x.px.slice(-26);const mn=Math.min(...a),mx=Math.max(...a);const pts=a.map((v,i)=>[i/(a.length-1)*w,h-2-(v-mn)/(mx-mn||1)*(h-4)]);
   const up=a[a.length-1]>=a[0];const col=up?'var(--good)':'var(--bad)';
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="Koers laatste 6 maanden ${up?'gestegen':'gedaald'}" role="img"><polyline points="${pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${pts.at(-1)[0].toFixed(1)}" cy="${pts.at(-1)[1].toFixed(1)}" r="2.2" fill="${col}"/></svg>`;}
-const CSYM={EUR:'€ ',USD:'$ ',CHF:'CHF ',DKK:'DKK '};
+const CSYM={EUR:'€ ',USD:'$ ',CHF:'CHF ',DKK:'DKK ',GBP:'£ '};
 const px=(x,v=x.p)=>(CSYM[x.ccy]||x.ccy+' ')+nf2.format(v);
 const valPill=x=>{if(x.etf)return `<span class="pill neu">ETF · ${x.acc?'accumulerend':'uitkerend'} · TER ${nf2.format(x.ter)}%</span>`;const d=x.disc;return Math.abs(d)<.05?`<span class="pill neu">rond ${FV_L}</span>`:d>0?`<span class="pill good">${pct(d,0)} onder ${FV_L}</span>`:`<span class="pill bad">${pct(-d,0)} boven ${FV_L}</span>`;};
 

@@ -24,7 +24,8 @@ erDiagram
 | `transaction` | id, portfolio_id, instrument_id, type (BUY/SELL/DIVIDEND/FEE/CASH), trade_date, quantity, price (lokaal), fx_rate, fees, tax | Bron van alle berekeningen |
 | `price_daily` | instrument_id, date, close, volume | Slotkoersen |
 | `fx_daily` | pair, date, rate | Bijv. EURUSD |
-| `dividend_event` | instrument_id, ex_date, pay_date, amount (lokaal), status (declared/estimated) | Voor kalender en prognose |
+| `dividend_event` | instrument_id, ex_date, pay_date, amount_unadjusted, currency (van het dividend, niet van de notering), status (declared/estimated) | Voor kalender en prognose. Recht = positie aan het eind van de dag vóór ex_date |
+| `split` | instrument_id, date, ratio (nieuwe aandelen per oud aandeel) | Uit EODHD /splits. Aantallen en dividend per aandeel van vóór de split worden hiermee omgerekend |
 | `fundamentals` | instrument_id, as_of, pe, eps_growth_fc, roe, debt_equity, payout_ratio | Voor "posities op één lijn" |
 | `score` | instrument_id, as_of, valuation, growth, past, health, dividend (0–6), fair_value, fair_value_method | Kompasscore en waardering |
 | `benchmark` | code (AEX, AMX, MSCI World), date, close | Vergelijking |

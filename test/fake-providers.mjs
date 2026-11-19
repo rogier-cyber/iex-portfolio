@@ -13,7 +13,10 @@ globalThis.fetch = async (u) => {
     const sym = decodeURIComponent(p.split("/").pop());
     if (p.startsWith("/api/eod/")) body = series(sym);
     else if (p.startsWith("/api/real-time/")) body = { close: P0[sym], previousClose: P0[sym]/1.01, change_p: 1.0, timestamp: Date.now()/1000 };
-    else if (p.startsWith("/api/div/")) body = sym.includes("ADYEN") ? [] : [2021,2022,2023,2024,2025,2026].flatMap(y=>[{date:`${y}-04-24`,paymentDate:`${y}-05-06`,value:0.5+(y-2021)*0.05,currency:"EUR"},{date:`${y}-10-27`,paymentDate:`${y}-11-06`,value:0.3+(y-2021)*0.04,currency:"EUR"}]);
+    else if (p.startsWith("/api/splits/")) body = sym === "MSFT.US" ? [{ date: "2022-07-18", split: "20.000000/1.000000" }] : [];
+    // MSFT: value is split-gecorrigeerd, unadjustedValue vóór de nep-split 20x zo hoog (zoals EODHD dat levert)
+    else if (p.startsWith("/api/div/")) body = sym.includes("ADYEN") ? [] : [2021,2022,2023,2024,2025,2026].flatMap(y=>[{date:`${y}-04-24`,paymentDate:`${y}-05-06`,value:0.5+(y-2021)*0.05,currency:sym.endsWith(".US")?"USD":"EUR"},{date:`${y}-10-27`,paymentDate:`${y}-11-06`,value:0.3+(y-2021)*0.04,currency:sym.endsWith(".US")?"USD":"EUR"}])
+      .map(d=>({...d,unadjustedValue:sym==="MSFT.US"&&d.date<"2022-07-18"?d.value*20:d.value}));
     else if (p.startsWith("/api/fundamentals/")) body = sym==="BESI.AS" ? {} : { General:{Name:sym,Sector:"Technology",CountryName:"Netherlands",CurrencyCode:"EUR"}, Highlights:{PERatio:18.5,ReturnOnEquityTTM:0.21,ProfitMargin:0.18,QuarterlyRevenueGrowthYOY:0.07,DividendYield:0.025,WallStreetTargetPrice:P0[sym]*1.12}, Valuation:{TrailingPE:18.5,ForwardPE:16}, SplitsDividends:{PayoutRatio:0.45}, Earnings:{Trend:{a:{period:"+1y",growth:"0.11"}}}, Financials:{Balance_Sheet:{yearly:{"2024-12-31":{totalStockholderEquity:"1000",shortLongTermDebtTotal:"450",cash:"200"}}}}, Technicals:{Beta:1.1} };
     else if (p === "/api/news") body = [{date:"2026-11-14T08:00:00+00:00",title:"Test: ASML meldt orderboek",link:"https://example.com/a",symbols:["ASML.AS"]},{date:"2026-11-13T08:00:00+00:00",title:"Test: Microsoft & cloud <b>",link:"https://example.com/b",symbols:["MSFT.US"]}];
     else return new Response("not found", { status: 404 });
@@ -66,4 +69,6 @@ console.log("ASML fund", JSON.stringify(data.instruments.ASML.fundamentals).slic
 console.log("BESI from FMP only", JSON.stringify(besi));
 console.log("AFM", JSON.stringify(data.afm).slice(0, 220), "| ASML afm rows:", (data.instruments.ASML.afm || []).length);
 console.log("EU", JSON.stringify(data.insiderSources), "| NESN:", JSON.stringify((data.instruments.NESN.afm||[])[0]), "| MC:", JSON.stringify((data.instruments.MC.afm||[])[0]));
+const ms = data.instruments.MSFT;
+console.log("MSFT splits", JSON.stringify(ms.splits), "| div 2021-04 raw:", JSON.stringify(ms.dividends.find((d) => d.ex === "2021-04-24")), "| prijs 2021 vs 2023:", ms.prices.find((p) => p[0] >= "2021-06-01")?.[1], ms.prices.find((p) => p[0] >= "2023-06-01")?.[1]);
 console.log("FSMA/KBC:", JSON.stringify((data.instruments.KBC.afm||[])[0]), "| leis:", data.afm.leis);
