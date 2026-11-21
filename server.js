@@ -48,6 +48,7 @@ const TYPES = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
 };
 
 // gzip voor tekst (html, js, css, json, svg); gecomprimeerde bestanden blijven in het geheugen
@@ -116,7 +117,7 @@ const server = createServer(async (req, res) => {
     if (!target.startsWith(PUBLIC)) throw Object.assign(new Error("forbidden"), { code: "ENOENT" });
     const info = await stat(target);
     if (info.isDirectory()) return await sendFile(res, join(target, "index.html"), "no-cache", req);
-    return await sendFile(res, target, target.endsWith(".html") ? "no-cache" : /\/(logos|brand)\/|favicon|apple-touch/.test(target) ? "public, max-age=604800" : "public, max-age=300", req);
+    return await sendFile(res, target, target.endsWith(".html") ? "no-cache" : /\/(logos|brand)\/|favicon|apple-touch|icon-\d+\.png|site\.webmanifest/.test(target) ? "public, max-age=604800" : "public, max-age=300", req);
   } catch (err) {
     if (err.code === "ENOENT" || err.code === "ENOTDIR") {
       // Onbekend pad: toon de app (weergaven werken met #hash)
